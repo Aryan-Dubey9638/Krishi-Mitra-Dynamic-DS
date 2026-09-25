@@ -1,0 +1,5 @@
+first time- 
+./venv/bin/python main.py build
+
+run-
+./venv/bin/python app.py
