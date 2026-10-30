@@ -1,0 +1,12 @@
+first time- 
+./venv/bin/python main.py build
+
+groq api- 
+[SET_YOUR_GROQ_API_KEY]
+
+gemini api- 
+[SET_YOUR_GEMINI_API_KEY]
+
+run-
+terminal 1 : ollama serve
+terminal 2 : ./venv/bin/python app.py

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Basic RAG - Agricultural Advisory</title>
+    <title>Topo-RAG - Agricultural Advisory</title>
     <link rel="stylesheet" href="/static/styles.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -16,18 +16,28 @@
     </div>
     <div class="container">
         <header>
-            <h1>Agricultural Advisory Platform</h1>
+            <div class="header-left">
+                <h1>Topo-RAG</h1>
+                <p>Agricultural Advisory Platform</p>
+            </div>
+            <button id="reset-btn" onclick="resetConversation()" title="Start new conversation">
+                ↺ New Chat
+            </button>
         </header>
 
         <main>
             <div class="chat-container" id="chat-container">
-                <div class="message system-message">
-                    Hello! I am your Agricultural Assistant. How can I help you calculate net profits or provide market insights today?
+                <div class="message bot-message">
+                    <div class="advisory-text">
+                        Hello! I am <strong>Krishi Mitra</strong>, your agricultural market advisor. Ask me about net profits, mandi prices, transport costs, or APMC regulations.
+                        <br><br>
+                        <em>Try: "What is my net profit for 500kg Grade-A Tomatoes from Pune to Azadpur?"</em>
+                    </div>
                 </div>
             </div>
 
             <div class="input-container">
-                <input type="text" id="user-input" placeholder="e.g. What is my net profit for 500kg Grade-A Tomatoes from Pune to Azadpur?" onkeypress="handleKeyPress(event)">
+                <input type="text" id="user-input" placeholder="Ask about profits, prices, transport costs…" onkeypress="handleKeyPress(event)">
                 <button onclick="sendMessage()" id="send-button">Send</button>
             </div>
         </main>
@@ -35,9 +45,7 @@
 
     <script>
         function handleKeyPress(e) {
-            if (e.key === 'Enter') {
-                sendMessage();
-            }
+            if (e.key === 'Enter') sendMessage();
         }
 
         async function sendMessage() {
@@ -45,51 +53,196 @@
             const message = inputField.value.trim();
             if (!message) return;
 
-            addMessage(message, 'user-message');
+            appendMessage(message, 'user-message', null, null);
             inputField.value = '';
-            
+
             const btn = document.getElementById('send-button');
             btn.disabled = true;
-            btn.innerText = 'Thinking...';
+            btn.innerText = '…';
+
+            // Create the bot message bubble immediately with empty content.
+            // We will fill it progressively as SSE tokens arrive.
+            const botBubble = createBotBubble();
 
             try {
-                const response = await fetch('/api/chat', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ query: message })
-                });
-                
-                const data = await response.json();
-                
-                if (data.error) {
-                    addMessage('Error: ' + data.error, 'system-message');
-                } else {
-                    addMessage(data.response, 'bot-message', true);
-                }
+                await streamResponse(message, botBubble);
             } catch (err) {
-                addMessage('Error connecting to the server.', 'system-message');
+                botBubble.querySelector('.advisory-text').textContent =
+                    'Connection error. Make sure the server is running.';
+                console.error('Stream error:', err);
             } finally {
                 btn.disabled = false;
                 btn.innerText = 'Send';
             }
         }
 
-        function addMessage(text, className, preformatted=false) {
+        /**
+         * Calls /api/chat/stream and progressively fills botBubble.
+         * Uses fetch + ReadableStream so we get tokens as they arrive.
+         *
+         * SSE event types from the server:
+         *   "calc"  — full deterministic profit block (rendered immediately in <pre>)
+         *   "token" — a single LLM token to append to the advisory div
+         *   "done"  — stream finished
+         */
+        async function streamResponse(query, botBubble) {
+            const response = await fetch('/api/chat/stream', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ query })
+            });
+
+            if (!response.ok) {
+                botBubble.querySelector('.advisory-text').textContent =
+                    'Server error: ' + response.status;
+                return;
+            }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+            const calcEl = botBubble.querySelector('.calc-block');
+            const advisoryEl = botBubble.querySelector('.advisory-text');
+            let advisoryText = '';
+
+            while (true) {
+                const { value, done } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+
+                // SSE lines: split on double-newline boundaries
+                const events = buffer.split('\n\n');
+                buffer = events.pop();   // keep any incomplete event in buffer
+
+                for (const eventStr of events) {
+                    const line = eventStr.trim();
+                    if (!line.startsWith('data:')) continue;
+
+                    let payload;
+                    try {
+                        payload = JSON.parse(line.slice(5).trim());
+                    } catch {
+                        continue;
+                    }
+
+                    if (payload.type === 'calc') {
+                        if (payload.content) {
+                            calcEl.textContent = payload.content;
+                            calcEl.style.display = 'block';
+                        }
+                    } else if (payload.type === 'token') {
+                        advisoryText += payload.content;
+                        // Replace newlines with <br> for display
+                        advisoryEl.innerHTML = advisoryText.replace(/\n/g, '<br>');
+                        // Keep chat scrolled to bottom as tokens arrive
+                        const chat = document.getElementById('chat-container');
+                        chat.scrollTop = chat.scrollHeight;
+                    } else if (payload.type === 'done') {
+                        break;
+                    }
+                }
+            }
+        }
+
+        /**
+         * Create an empty bot message bubble with placeholder elements.
+         * The <pre class="calc-block"> is hidden until a "calc" event arrives.
+         * The <div class="advisory-text"> fills progressively with tokens.
+         */
+        function createBotBubble() {
+            const chatContainer = document.getElementById('chat-container');
+            const msgDiv = document.createElement('div');
+            msgDiv.className = 'message bot-message';
+
+            const pre = document.createElement('pre');
+            pre.className = 'calc-block';
+            pre.style.display = 'none';   // hidden until calc event
+            msgDiv.appendChild(pre);
+
+            const advisory = document.createElement('div');
+            advisory.className = 'advisory-text';
+            advisory.innerHTML = '<span class="cursor">▍</span>';  // blinking cursor
+            msgDiv.appendChild(advisory);
+
+            chatContainer.appendChild(msgDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+            return msgDiv;
+        }
+
+        // Keep the original appendMessage for user messages / system messages
+        function appendMessage(text, className, calculation, advisory) {
             const chatContainer = document.getElementById('chat-container');
             const msgDiv = document.createElement('div');
             msgDiv.className = `message ${className}`;
-            
-            if (preformatted) {
-                const pre = document.createElement('pre');
-                pre.textContent = text;
-                msgDiv.appendChild(pre);
-            } else {
+
+            if (className === 'user-message') {
                 msgDiv.textContent = text;
+            } else if (className === 'system-message') {
+                msgDiv.textContent = text;
+            } else {
+                // Bot message (non-streaming, e.g. reset message)
+                if (calculation) {
+                    const pre = document.createElement('pre');
+                    pre.className = 'calc-block';
+                    pre.textContent = calculation;
+                    msgDiv.appendChild(pre);
+                }
+                if (advisory) {
+                    const p = document.createElement('div');
+                    p.className = 'advisory-text';
+                    p.innerHTML = advisory.replace(/\n/g, '<br>');
+                    msgDiv.appendChild(p);
+                }
+                if (!calculation && !advisory) {
+                    msgDiv.innerHTML = `<div class="advisory-text">${text || ''}</div>`;
+                }
             }
-            
+
             chatContainer.appendChild(msgDiv);
             chatContainer.scrollTop = chatContainer.scrollHeight;
+            return msgDiv;
+        }
+
+        function appendTypingIndicator() {
+            const chatContainer = document.getElementById('chat-container');
+            const div = document.createElement('div');
+            div.className = 'message bot-message typing-indicator';
+            div.id = 'typing-' + Date.now();
+            div.innerHTML = '<span></span><span></span><span></span>';
+            chatContainer.appendChild(div);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+            return div.id;
+        }
+
+        function removeTypingIndicator(id) {
+            const el = document.getElementById(id);
+            if (el) el.remove();
+        }
+
+        async function resetConversation() {
+            try {
+                await fetch('/api/reset', { method: 'POST' });
+                const chatContainer = document.getElementById('chat-container');
+                chatContainer.innerHTML = '';
+                appendMessage(null, 'bot-message', null, 'Conversation reset! Starting fresh. What would you like to know?');
+            } catch (e) {
+                console.error('Reset failed', e);
+            }
         }
     </script>
+
+    <style>
+        /* Blinking cursor while tokens stream in */
+        .cursor {
+            display: inline-block;
+            animation: blink 0.8s step-end infinite;
+            opacity: 1;
+        }
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50%       { opacity: 0; }
+        }
+    </style>
 </body>
 </html>

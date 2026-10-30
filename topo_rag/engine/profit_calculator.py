@@ -25,10 +25,6 @@ from typing import Dict, List, Optional, Tuple
 logger = logging.getLogger(__name__)
 
 
-# ---------------------------------------------------------------------------
-# Default lookup tables (overridden at runtime by retrieved mandi data)
-# ---------------------------------------------------------------------------
-
 # Transport tariff: ₹ per quintal per km (heuristic defaults)
 _DEFAULT_TARIFF_PER_QTL_KM: float = 0.80   # ₹0.80/q/km
 
@@ -113,7 +109,7 @@ class ProfitBreakdown:
     def summary(self) -> str:
         lines = [
             f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-            f"  Basic RAG Net Profit Calculation",
+            f"  Net Profit Calculation",
             f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
             f"  Commodity   : {self.commodity.title()} (Grade {self.grade})",
             f"  Quantity    : {self.quantity_kg:.1f} kg ({self.quantity_quintals:.3f} quintals)",

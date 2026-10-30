@@ -40,15 +40,16 @@ class Chunk:
 # ---------------------------------------------------------------------------
 
 AGMARKNET_COLUMNS = {
-    "state": ["State", "state", "STATE"],
-    "district": ["District", "district", "DISTRICT"],
-    "market": ["Market", "market", "MARKET", "Mandi", "mandi"],
-    "commodity": ["Commodity", "commodity", "COMMODITY", "Crop", "crop"],
-    "variety": ["Variety", "variety", "VARIETY"],
-    "arrival_date": ["Arrival_Date", "arrival_date", "ArrivalDate", "Date", "date"],
-    "min_price": ["Min_x0020_Price", "Min Price", "min_price", "MinPrice", "Min"],
-    "max_price": ["Max_x0020_Price", "Max Price", "max_price", "MaxPrice", "Max"],
-    "modal_price": ["Modal_x0020_Price", "Modal Price", "modal_price", "ModalPrice", "Modal"],
+    "state":        ["State", "state", "STATE"],
+    "district":     ["District", "District Name", "district", "DISTRICT"],
+    "market":       ["Market", "Market Name", "market", "MARKET", "Mandi", "mandi"],
+    "commodity":    ["Commodity", "commodity", "COMMODITY", "Crop", "crop"],
+    "variety":      ["Variety", "variety", "VARIETY"],
+    "grade":        ["Grade", "grade", "GRADE"],
+    "arrival_date": ["Arrival_Date", "arrival_date", "ArrivalDate", "Price Date", "Date", "date"],
+    "min_price":    ["Min_Price", "Min_x0020_Price", "Min Price", "min_price", "MinPrice", "Min"],
+    "max_price":    ["Max_Price", "Max_x0020_Price", "Max Price", "max_price", "MaxPrice", "Max"],
+    "modal_price":  ["Modal_Price", "Modal_x0020_Price", "Modal Price", "modal_price", "ModalPrice", "Modal"],
 }
 
 

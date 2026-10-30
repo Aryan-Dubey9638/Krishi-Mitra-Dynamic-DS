@@ -1,0 +1,178 @@
+
+"""
+Gemini LLM Synthesizer
+======================
+Replaces the TemplateSynthesizer with a Gemini-backed conversational
+response generator. Maintains full multi-turn chat history per session.
+
+Key design decisions:
+  - The deterministic profit calculation block is ALWAYS preserved exactly
+    as-is (monospace, ₹ symbols, formatted table) — injected verbatim.
+  - The LLM only generates the ADVISORY paragraph that comes AFTER the block.
+  - Context chunks are cleaned before sending to LLM (strips [COL:][VAL:]
+    CALI encoding noise, markdown headers, similarity scores).
+  - Multi-turn history is maintained in the Gemini ChatSession object.
+  - Falls back to TemplateSynthesizer silently if API key is missing/invalid.
+"""
+
+from __future__ import annotations
+
+import logging
+import os
+import re
+from typing import List, Optional
+
+logger = logging.getLogger(__name__)
+
+# Separator used to split calculation block from LLM advisory in API response
+BLOCK_SEPARATOR = "<<<ADVISORY>>>"
+
+
+def _clean_context(chunks) -> str:
+    """
+    Strip CALI encoding noise from retrieved chunks so the LLM sees
+    clean market knowledge instead of raw cell encoding strings.
+
+    Removes:
+      - [COL: ...] [ROW: ...] [VAL: ...] cell tags
+      - Leading similarity scores like (score=0.654)
+      - Markdown header symbols (##, ###)
+      - Trailing ellipsis (…)
+    """
+    clean_parts = []
+    for chunk in chunks:
+        text = chunk.text
+        # Strip CALI cell encoding
+        text = re.sub(r"\[COL:[^\]]*\]", "", text)
+        text = re.sub(r"\[ROW:[^\]]*\]", "", text)
+        text = re.sub(r"\[VAL:[^\]]*\]", "", text)
+        # Strip markdown headers
+        text = re.sub(r"^#{1,4}\s*", "", text, flags=re.MULTILINE)
+        # Strip trailing ellipsis and excess whitespace
+        text = text.replace("…", "").strip()
+        text = re.sub(r"\s+", " ", text)
+        if text:
+            clean_parts.append(text)
+    return "\n\n".join(clean_parts[:3])  # Send top 3 cleaned chunks
+
+
+SYSTEM_PROMPT = """You are Krishi Mitra, an expert agricultural market advisor helping Indian farmers 
+make better sell, store, and transport decisions.
+
+Your role:
+- Interpret profit calculations and give actionable advice.
+- Explain market dynamics in simple language (avoid jargon).
+- Reference APMC rules, transport costs, and wastage factors when relevant.
+- Maintain context across the full conversation — remember what the farmer told you before.
+- Keep responses SHORT (3-5 sentences max) unless the farmer asks for more detail.
+- NEVER repeat the numbers already shown in the calculation block — the farmer can see them.
+- Focus on: What should the farmer DO next? What risks should they watch for?
+
+Tone: Warm, practical, like a trusted advisor at the mandi."""
+
+
+class GeminiSynthesizer:
+    """
+    Gemini 3.5 Flash backed synthesizer with multi-turn chat history.
+
+    Parameters
+    ----------
+    api_key : str
+        Google AI Studio API key. If None, falls back to GEMINI_API_KEY env var.
+    model_name : str
+        Gemini model to use. Defaults to gemini-3.5-flash.
+    """
+
+    def __init__(self, api_key: Optional[str] = None, model_name: str = "gemini-3.5-flash"):
+        self._api_key = api_key or os.getenv("GEMINI_API_KEY", "")
+        self._model_name = model_name
+        self._chat = None
+        self._client = None
+        self._available = False
+
+        if not self._api_key:
+            logger.warning("GEMINI_API_KEY not set — falling back to template responses.")
+            return
+
+        try:
+            from google import genai
+            self._client = genai.Client(api_key=self._api_key)
+            self._chat = self._client.chats.create(
+                model=self._model_name,
+                config={"system_instruction": SYSTEM_PROMPT}
+            )
+            self._available = True
+            logger.info("GeminiSynthesizer ready (model=%s)", self._model_name)
+        except Exception as e:
+            logger.error("Failed to initialize Gemini: %s", e)
+
+    def reset_chat(self):
+        """Reset conversation history (call on new user session)."""
+        if self._chat is not None and self._client is not None:
+            self._chat = self._client.chats.create(
+                model=self._model_name,
+                config={"system_instruction": SYSTEM_PROMPT}
+            )
+            logger.info("GeminiSynthesizer: chat history cleared")
+
+    def generate(
+        self,
+        query: str,
+        context_chunks: list,
+        profit=None,
+    ) -> str:
+        """
+        Generate a response combining:
+          1. The deterministic profit calculation block (preserved verbatim)
+          2. An LLM-generated advisory paragraph
+        """
+        # Always build the calculation block first (deterministic, no LLM)
+        calc_block = profit.summary() if profit else ""
+
+        if not self._available:
+            return self._fallback(query, context_chunks, calc_block, "API Key not configured")
+
+        try:
+            return self._gemini_response(query, context_chunks, calc_block)
+        except Exception as e:
+            logger.error("Gemini API error: %s", e)
+            return self._fallback(query, context_chunks, calc_block, str(e))
+
+    def _gemini_response(self, query: str, context_chunks: list, calc_block: str) -> str:
+        clean_ctx = _clean_context(context_chunks)
+
+        # Build the user turn prompt
+        if calc_block:
+            prompt = (
+                f"The farmer asked: {query}\n\n"
+                f"I have already shown them this profit calculation:\n"
+                f"{calc_block}\n\n"
+                f"Additional market knowledge retrieved:\n{clean_ctx}\n\n"
+                f"Give a short advisory (3-5 sentences) about what the farmer should do next. "
+                f"Do NOT repeat any numbers from the calculation."
+            )
+        else:
+            prompt = (
+                f"The farmer asked: {query}\n\n"
+                f"Relevant market knowledge:\n{clean_ctx}\n\n"
+                f"Answer conversationally in 3-5 sentences."
+            )
+
+        response = self._chat.send_message(prompt)
+        advisory = response.text.strip()
+
+        if calc_block:
+            return f"{calc_block}{BLOCK_SEPARATOR}{advisory}"
+        else:
+            return advisory
+
+    def _fallback(self, query: str, context_chunks: list, calc_block: str, error_msg: str) -> str:
+        """Template fallback when Gemini is unavailable."""
+        advisory = ""
+        if error_msg:
+             advisory = f"*(AI Advisory temporarily unavailable: {error_msg})*"
+             
+        if calc_block:
+            return f"{calc_block}{BLOCK_SEPARATOR}{advisory}"
+        else:
+            return advisory

@@ -54,6 +54,13 @@ class CrossEncoderReranker:
         self.max_length = max_length
         self._model = None
         logger.info("CrossEncoderReranker initialised (model=%s)", self.model_name)
+        # Eager-load the cross-encoder now so the first rerank() call is instant.
+        # This moves the 3-4 second cost to startup rather than the first user query.
+        try:
+            _ = self.model
+            logger.info("CrossEncoderReranker: model pre-loaded and ready.")
+        except Exception as e:
+            logger.warning("CrossEncoderReranker: pre-load failed (will retry on first use): %s", e)
 
     @property
     def model(self):

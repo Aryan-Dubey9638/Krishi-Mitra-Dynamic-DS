@@ -54,36 +54,44 @@ BANNER = r"""
 # ---------------------------------------------------------------------------
 
 def cmd_build(args):
-    """Generate mock data → load chunks → index into both stores."""
-    from topo_rag.utils.mock_data_generator import (
-        generate_agmarknet_csv,
-        generate_transport_matrix_csv,
-    )
+    """Load real dataset (or synthetic fallback) → chunk → index into both stores."""
+    import random
     from topo_rag.core.data_loader import AgmarknetLoader, NarrativeLoader
     from topo_rag.engine.pipeline import TopoRAGPipeline
 
     print(BANNER)
     print("=" * 60)
-    print("  Phase 1: Data Generation")
+    print("  Phase 1: Data Source")
     print("=" * 60)
 
     raw_dir = DATA_DIR / "raw"
-    real_csv = raw_dir / "agmarknet_sample.csv"
-    
+    raw_dir.mkdir(parents=True, exist_ok=True)
+
+    # Priority: real cleaned dataset > synthetic fallback
+    real_csv   = raw_dir / "agmarknet_prices.csv"   # written by dataset_prep.py
+    legacy_csv = raw_dir / "agmarknet_sample.csv"   # old name (kept for compat)
+
     if real_csv.exists():
-        print(f"  Found real dataset: {real_csv}")
         csv_path = str(real_csv)
+        print(f"  ✓ Real dataset found: {real_csv.name}")
+    elif legacy_csv.exists():
+        csv_path = str(legacy_csv)
+        print(f"  ✓ Legacy dataset found: {legacy_csv.name}")
     else:
-        print("  Generating synthetic dataset as fallback...")
+        print("  ⚠ No real dataset found — generating synthetic fallback …")
+        print("    (Run 'python dataset_prep.py' to use the real Agmarknet CSV)")
+        from topo_rag.utils.mock_data_generator import generate_agmarknet_csv
         csv_path = generate_agmarknet_csv(str(raw_dir), num_days=90)
-        
+
+    # Always regenerate the transport matrix (fast, stateless)
+    from topo_rag.utils.mock_data_generator import generate_transport_matrix_csv
     generate_transport_matrix_csv(str(raw_dir))
 
     print("\n" + "=" * 60)
     print("  Phase 2: Loading & Chunking")
     print("=" * 60)
 
-    # Load tabular (cell-level for Route B)
+    # Load tabular chunks (cell-level for Route B / CALI)
     tab_loader = AgmarknetLoader(cell_mode=True)
     tabular_chunks = tab_loader.load_csv(csv_path)
     print(f"  Loaded {len(tabular_chunks):,} cell-level chunks (Route B)")
@@ -94,10 +102,12 @@ def cmd_build(args):
     narrative_chunks = nar_loader.load_directory(str(narrative_dir))
     print(f"  Loaded {len(narrative_chunks):,} narrative chunks (Route A)")
 
-    # Limit tabular chunks for fast MVP (first 5000 cells)
-    if len(tabular_chunks) > 5000:
-        print(f"  Limiting to 5,000 tabular cells for fast MVP indexing …")
-        tabular_chunks = tabular_chunks[:5000]
+    # Stratified random sample across all chunks (preserves commodity balance)
+    MAX_CELLS = 8_000
+    if len(tabular_chunks) > MAX_CELLS:
+        print(f"  Stratified sample → keeping {MAX_CELLS:,} tabular cells …")
+        random.seed(42)
+        tabular_chunks = random.sample(tabular_chunks, MAX_CELLS)
 
     print("\n" + "=" * 60)
     print("  Phase 3: Building Vector Index")

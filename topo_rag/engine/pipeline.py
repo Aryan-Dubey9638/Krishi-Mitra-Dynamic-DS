@@ -41,8 +41,31 @@ _CROP_KEYWORDS = [
 ]
 _CITY_KEYWORDS = [
     "pune", "mumbai", "delhi", "nashik", "indore", "agra", "lucknow",
-    "hyderabad", "bengaluru", "chennai", "kolkata", "nagpur", "azadpur",
-    "vashi", "gultekdi", "bowenpally", "koyambedu",
+    "hyderabad", "bengaluru", "bangalore", "chennai", "kolkata", "nagpur",
+    "azadpur", "vashi", "gultekdi", "bowenpally", "koyambedu",
+    # Central India
+    "bhopal", "jabalpur", "gwalior", "raipur", "bilaspur",
+    # Rajasthan
+    "jaipur", "jodhpur", "kota", "udaipur", "ajmer",
+    # UP / Bihar
+    "varanasi", "kanpur", "allahabad", "prayagraj", "patna", "muzaffarpur",
+    "gorakhpur", "meerut", "ghaziabad", "noida",
+    # Punjab / Haryana
+    "amritsar", "ludhiana", "chandigarh", "hisar", "karnal",
+    # Gujarat
+    "ahmedabad", "surat", "vadodara", "rajkot",
+    # Maharashtra (more)
+    "aurangabad", "solapur", "kolhapur", "sangli", "satara", "lasalgaon",
+    # Andhra / Telangana
+    "vijayawada", "visakhapatnam", "warangal", "tirupati",
+    # Karnataka
+    "mysuru", "hubli", "mangalore", "belagavi",
+    # Tamil Nadu / Kerala
+    "coimbatore", "madurai", "tiruchirappalli", "thiruvananthapuram", "kochi",
+    # Odisha / WB
+    "bhubaneswar", "cuttack", "siliguri", "asansol",
+    # Himachal / J&K
+    "shimla", "srinagar", "jammu",
 ]
 
 
@@ -72,13 +95,25 @@ def _parse_crop(query: str) -> Optional[str]:
 
 
 def _parse_locations(query: str) -> Tuple[Optional[str], Optional[str]]:
-    """Extract up to 2 location mentions; first = source, second = destination."""
+    """
+    Extract up to 2 location mentions in the ORDER they appear in the query,
+    so "from Bhopal to Pune" correctly gives (Bhopal, Pune) not (Pune, Bhopal).
+    """
     q_lower = query.lower()
-    found = [city.title() for city in _CITY_KEYWORDS if city in q_lower]
-    if len(found) >= 2:
-        return found[0], found[1]
-    elif len(found) == 1:
-        return found[0], "Azadpur"   # sensible default destination mandi
+    # Collect (position_in_query, city_title) pairs for every city found
+    hits = []
+    for city in _CITY_KEYWORDS:
+        idx = q_lower.find(city)
+        if idx != -1:
+            hits.append((idx, city.title()))
+    # Sort by position in the original query string
+    hits.sort(key=lambda x: x[0])
+    cities = [h[1] for h in hits]
+
+    if len(cities) >= 2:
+        return cities[0], cities[1]
+    elif len(cities) == 1:
+        return cities[0], "Azadpur"   # sensible default destination mandi
     return None, None
 
 
@@ -121,7 +156,7 @@ class TemplateSynthesizer:
     ) -> str:
         lines = [
             "═" * 55,
-            "  Basic RAG Agricultural Advisory Response",
+            "  Topo-RAG Agricultural Advisory Response",
             "═" * 55,
             f"  Query: {query}",
             "",
@@ -348,6 +383,61 @@ class TopoRAGPipeline:
             context_text=context_text,
             profit_breakdown=profit_breakdown,
             llm_response=llm_response,
+        )
+
+    def query_for_stream(
+        self,
+        query: str,
+        calculate_profit: bool = True,
+        use_reranker: bool = True,
+    ) -> PipelineResponse:
+        """
+        Runs steps 1–4 of the pipeline (SDS → retrieval → reranking → profit)
+        WITHOUT calling the synthesizer (step 5).
+
+        Used by the streaming endpoint in app.py, which calls
+        synthesizer.generate_stream() separately so LLM tokens can be forwarded
+        to the browser as they arrive rather than buffering the full response.
+
+        Returns a PipelineResponse with llm_response set to "" (empty string).
+        """
+        logger.info("Pipeline query_for_stream: %r", query)
+
+        # Step 1: SDS routing
+        sds_result = self.sds_router.compute_full(query)
+        logger.info("SDS=%.3f → Route %s", sds_result.sds, sds_result.route)
+
+        # Step 2: Retrieval
+        candidates, route_used = self._retrieve(query, sds_result)
+
+        # Step 3: Reranking
+        if use_reranker and candidates:
+            try:
+                reranked = self.reranker.rerank(query, candidates, top_k=self.top_k_rerank)
+            except Exception as e:
+                logger.warning("Reranker failed, using retrieval order: %s", e)
+                reranked = candidates[:self.top_k_rerank]
+        else:
+            reranked = candidates[:self.top_k_rerank]
+
+        # Build merged context text
+        context_text = "\n\n---\n\n".join(r.text for r in reranked)
+
+        # Step 4: Profit calculation
+        profit_breakdown: Optional[ProfitBreakdown] = None
+        if calculate_profit:
+            profit_breakdown = self._try_profit_calculation(query, reranked)
+
+        # Step 5 intentionally skipped — caller streams it
+        return PipelineResponse(
+            query=query,
+            route_used=route_used,
+            sds_score=sds_result.sds,
+            retrieved_results=candidates,
+            reranked_results=reranked,
+            context_text=context_text,
+            profit_breakdown=profit_breakdown,
+            llm_response="",
         )
 
     def _try_profit_calculation(

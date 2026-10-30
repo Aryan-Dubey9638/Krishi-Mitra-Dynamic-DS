@@ -180,6 +180,11 @@ class NarrativeStore(BaseVectorStore):
         self._metadatas = data["metadatas"]
         self._dim = data["dim"]
         logger.info("NarrativeStore loaded from %s (%d vectors)", directory, self._index.ntotal)
+        # Eager-load the sentence-transformer model now so the first real query
+        # doesn't pay the 8-10 second PyTorch cold-start cost.
+        logger.info("NarrativeStore: pre-warming bi-encoder model…")
+        _ = self._embed(["warmup"])
+        logger.info("NarrativeStore: bi-encoder ready.")
 
     @property
     def count(self) -> int:
@@ -338,6 +343,11 @@ class TabularStore(BaseVectorStore):
         self._row_ids = data["row_ids"]
         self._dim = data["dim"]
         logger.info("TabularStore loaded from %s (%d cells)", directory, self._index.ntotal)
+        # Eager-load the sentence-transformer model now so the first real query
+        # doesn't pay the 8-10 second PyTorch cold-start cost.
+        logger.info("TabularStore: pre-warming CALI encoder model…")
+        _ = self._embed(["warmup"])
+        logger.info("TabularStore: CALI encoder ready.")
 
     @property
     def count(self) -> int:
