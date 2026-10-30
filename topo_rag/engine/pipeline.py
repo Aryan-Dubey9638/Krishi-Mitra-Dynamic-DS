@@ -470,6 +470,19 @@ class TopoRAGPipeline:
                 except (ValueError, TypeError):
                     pass
 
+        # If reranked was mostly narrative and didn't contain modal_price, search tabular store for destination + crop
+        if modal_price is None and destination and crop and hasattr(self, 'tabular_store') and self.tabular_store.count > 0:
+            try:
+                dest_results = self.tabular_store.search(f"{destination} {crop}", top_k=3)
+                for res in dest_results:
+                    mp = res.metadata.get("modal_price", "")
+                    if mp:
+                        modal_price = float(str(mp).replace(",", "").replace("₹", "").strip())
+                        logger.info("Retrieved modal price ₹%.2f/q for %s in %s from TabularStore", modal_price, crop, destination)
+                        break
+            except Exception as e:
+                logger.debug("Tabular fallback search failed: %s", e)
+
         if modal_price is None:
             # Use sensible defaults per commodity
             defaults = {

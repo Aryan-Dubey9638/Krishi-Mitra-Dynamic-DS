@@ -1,19 +1,19 @@
 """
-Deterministic Math Engine
-=========================
+Deterministic Math Engine (with Dynamic Government & Logistics Resolvers)
+========================================================================
 Implements the formula-enforced profit calculator from the Topo-RAG proposal:
 
     Net Profit = (Yield × Price) - (Transport + Taxes + Wastage)
 
-All arithmetic is performed with exact Python float/Decimal arithmetic
-(no LLM inference in the hot-path) to guarantee numerical accuracy.
+All arithmetic is performed with exact Python float arithmetic
+(no LLM inference in the calculation hot-path) to guarantee numerical accuracy.
 
-Components
-----------
-- ProfitCalculator : Core formula engine.
-- TariffLookup     : Retrieves transport tariffs from indexed data.
-- TaxEngine        : Applies APMC commission + mandi tax rules.
-- WastageModel     : Adjustable wastage-rate lookup by commodity.
+Dynamic Variable Integration:
+----------------------------
+- Highway Routing & Distance : Live OSRM National Highway Network
+- APMC Market Taxes & Fees   : Resolved by destination State APMC Act Schedule
+- Transport Tariffs          : Fuel-indexed via PPAC diesel rates & distance tiers
+- Wastage Norms              : ICAR-CIPHET baseline + Open-Meteo ambient weather
 """
 
 from __future__ import annotations
@@ -22,49 +22,57 @@ import logging
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
+from topo_rag.engine.dynamic_resolvers import (
+    DynamicVariableResolver,
+    DynamicRouteResult,
+    DynamicTaxResult,
+    DynamicTariffResult,
+    DynamicWastageResult,
+)
+
 logger = logging.getLogger(__name__)
 
 
-# Transport tariff: ₹ per quintal per km (heuristic defaults)
+# ---------------------------------------------------------------------------
+# Fallback Defaults (only used if dynamic resolution is explicitly disabled)
+# ---------------------------------------------------------------------------
+
 _DEFAULT_TARIFF_PER_QTL_KM: float = 0.80   # ₹0.80/q/km
-
-# APMC commission: % of total sale value
 _DEFAULT_APMC_COMMISSION_PCT: float = 2.0   # 2%
-
-# Mandi loading/unloading + other fees: ₹ per quintal
 _DEFAULT_MANDI_FEES_PER_QTL: float = 15.0   # ₹15/q
 
-# Wastage rates by commodity (fraction of quantity lost)
 _DEFAULT_WASTAGE_RATES: Dict[str, float] = {
-    "tomato": 0.15,
-    "onion": 0.08,
-    "potato": 0.06,
-    "wheat": 0.02,
+    "tomato": 0.12,
+    "onion": 0.06,
+    "potato": 0.04,
+    "wheat": 0.015,
     "rice": 0.02,
-    "maize": 0.03,
+    "maize": 0.02,
     "soybean": 0.02,
     "cotton": 0.01,
-    "mango": 0.20,
-    "banana": 0.22,
-    "grapes": 0.18,
-    "garlic": 0.10,
-    "default": 0.10,
+    "mango": 0.15,
+    "banana": 0.15,
+    "grapes": 0.12,
+    "garlic": 0.06,
+    "default": 0.08,
 }
 
-# Distance matrix (km) — defaults; populated from retrieved data at runtime
 _DEFAULT_DISTANCE_MATRIX: Dict[Tuple[str, str], float] = {
-    ("pune", "mumbai"): 145.0,
+    ("pune", "mumbai"): 148.0,
     ("pune", "delhi"): 1420.0,
-    ("pune", "azadpur"): 1420.0,   # Azadpur is the main Delhi wholesale market
-    ("nashik", "mumbai"): 170.0,
+    ("pune", "azadpur"): 1420.0,
+    ("nashik", "mumbai"): 166.0,
     ("nashik", "delhi"): 1380.0,
     ("nashik", "azadpur"): 1380.0,
-    ("indore", "delhi"): 780.0,
-    ("indore", "azadpur"): 780.0,
-    ("indore", "mumbai"): 590.0,
-    ("agra", "delhi"): 210.0,
-    ("agra", "azadpur"): 210.0,
-    ("agra", "mumbai"): 1170.0,
+    ("indore", "delhi"): 815.0,
+    ("indore", "azadpur"): 815.0,
+    ("indore", "mumbai"): 585.0,
+    ("bhopal", "mumbai"): 775.6,
+    ("bhopal", "delhi"): 785.0,
+    ("bhopal", "pune"): 788.0,
+    ("agra", "delhi"): 215.0,
+    ("agra", "azadpur"): 215.0,
+    ("agra", "mumbai"): 1190.0,
     ("lucknow", "delhi"): 555.0,
     ("lucknow", "azadpur"): 555.0,
     ("lucknow", "mumbai"): 1365.0,
@@ -114,7 +122,7 @@ class ProfitBreakdown:
             f"  Commodity   : {self.commodity.title()} (Grade {self.grade})",
             f"  Quantity    : {self.quantity_kg:.1f} kg ({self.quantity_quintals:.3f} quintals)",
             f"  Route       : {self.source_market} → {self.destination_market}",
-            f"  Distance    : {self.distance_km:.0f} km",
+            f"  Distance    : {self.distance_km:.1f} km",
             f"  Modal Price : ₹{self.modal_price_per_qtl:,.2f}/quintal",
             f"",
             f"  GROSS REVENUE        ₹{self.gross_revenue:>12,.2f}",
@@ -138,31 +146,24 @@ class ProfitBreakdown:
 
 
 # ---------------------------------------------------------------------------
-# Profit Calculator
+# Profit Calculator Engine
 # ---------------------------------------------------------------------------
 
 class ProfitCalculator:
     """
-    Deterministic profit calculator.
+    Deterministic profit calculator with live government & logistics resolvers.
 
     Net Profit = (Yield × Price) - (Transport + Taxes + Wastage)
-
-    Parameters
-    ----------
-    tariff_per_qtl_km   : ₹ per quintal per km
-    apmc_commission_pct : % of gross revenue charged as APMC commission
-    mandi_fees_per_qtl  : flat ₹ per quintal for loading/unloading
-    wastage_rates       : dict of commodity → fraction lost
-    distance_matrix     : dict of (src, dst) → km
     """
 
     def __init__(
         self,
-        tariff_per_qtl_km: float = _DEFAULT_TARIFF_PER_QTL_KM,
-        apmc_commission_pct: float = _DEFAULT_APMC_COMMISSION_PCT,
-        mandi_fees_per_qtl: float = _DEFAULT_MANDI_FEES_PER_QTL,
+        tariff_per_qtl_km: Optional[float] = None,
+        apmc_commission_pct: Optional[float] = None,
+        mandi_fees_per_qtl: Optional[float] = None,
         wastage_rates: Optional[Dict[str, float]] = None,
         distance_matrix: Optional[Dict[Tuple[str, str], float]] = None,
+        use_dynamic_resolvers: bool = True,
     ):
         self.tariff_per_qtl_km = tariff_per_qtl_km
         self.apmc_commission_pct = apmc_commission_pct
@@ -171,9 +172,11 @@ class ProfitCalculator:
         self.distance_matrix: Dict[Tuple[str, str], float] = (
             distance_matrix or dict(_DEFAULT_DISTANCE_MATRIX)
         )
+        self.use_dynamic = use_dynamic_resolvers
+        self.resolver = DynamicVariableResolver() if use_dynamic_resolvers else None
+        logger.info("ProfitCalculator initialized (dynamic_resolvers=%s)", self.use_dynamic)
 
-    def _get_distance(self, source: str, destination: str) -> Tuple[float, str]:
-        """Return (distance_km, note)."""
+    def _get_static_distance(self, source: str, destination: str) -> Tuple[float, str]:
         key = (source.lower(), destination.lower())
         rev_key = (destination.lower(), source.lower())
         if key in self.distance_matrix:
@@ -183,12 +186,6 @@ class ProfitCalculator:
         default = self.distance_matrix.get(("default", "default"), 500.0)
         return default, f"Distance not found for {source}→{destination}; using default {default:.0f} km"
 
-    def _get_wastage_rate(self, commodity: str) -> float:
-        return self.wastage_rates.get(
-            commodity.lower(),
-            self.wastage_rates.get("default", 0.10)
-        )
-
     def calculate(
         self,
         commodity: str,
@@ -197,22 +194,11 @@ class ProfitCalculator:
         source_market: str,
         destination_market: str,
         grade: str = "A",
-        grade_premium_pct: float = 0.0,   # Extra % price for Grade A etc.
+        grade_premium_pct: float = 0.0,
         override_distance_km: Optional[float] = None,
     ) -> ProfitBreakdown:
         """
-        Compute full profit breakdown.
-
-        Parameters
-        ----------
-        commodity           : e.g. 'Tomato'
-        quantity_kg         : e.g. 500.0
-        modal_price_per_qtl : Modal mandi price in ₹/quintal (retrieved)
-        source_market       : Origin market name
-        destination_market  : Target mandi name
-        grade               : 'A' | 'B' | 'C'
-        grade_premium_pct   : Additional price premium for grading (%)
-        override_distance_km: If provided, skip distance matrix lookup.
+        Compute full profit breakdown with dynamic resolution.
         """
         notes: List[str] = []
 
@@ -223,36 +209,87 @@ class ProfitCalculator:
         effective_price = modal_price_per_qtl * (1 + grade_premium_pct / 100.0)
         if grade_premium_pct > 0:
             notes.append(f"Grade {grade} premium: +{grade_premium_pct:.1f}% applied")
+        elif grade_premium_pct < 0:
+            notes.append(f"Grade {grade} discount: {grade_premium_pct:.1f}% applied")
 
-        # Gross revenue (before wastage deduction)
-        gross_revenue = quantity_quintals * effective_price
+        # ------------------------------------------------------------------
+        # 1. Resolve Highway Route & Distance (OSRM / OpenStreetMap)
+        # ------------------------------------------------------------------
+        if self.use_dynamic and self.resolver:
+            route_res = self.resolver.resolve_route(source_market, destination_market)
+            distance_km = (
+                override_distance_km if override_distance_km is not None else route_res.distance_km
+            )
+            dest_state = route_res.destination_state
+            notes.append(route_res.provenance_note)
+        else:
+            if override_distance_km is not None:
+                distance_km = override_distance_km
+            else:
+                distance_km, dist_note = self._get_static_distance(source_market, destination_market)
+                if dist_note:
+                    notes.append(dist_note)
+            dest_state = "default"
+            route_res = None
 
-        # Wastage
-        wastage_rate = self._get_wastage_rate(commodity)
+        # ------------------------------------------------------------------
+        # 2. Resolve Dynamic Fuel-Indexed Transport Tariff
+        # ------------------------------------------------------------------
+        if self.use_dynamic and self.resolver and self.tariff_per_qtl_km is None:
+            tariff_res = self.resolver.resolve_tariff(distance_km, dest_state)
+            tariff_rate = tariff_res.tariff_per_qtl_km
+            notes.append(tariff_res.provenance_note)
+        else:
+            tariff_rate = self.tariff_per_qtl_km or _DEFAULT_TARIFF_PER_QTL_KM
+            notes.append(f"Transport: ₹{tariff_rate:.2f}/q/km × {quantity_quintals:.3f}q × {distance_km:.1f}km")
+
+        transport_cost = quantity_quintals * tariff_rate * distance_km
+
+        # ------------------------------------------------------------------
+        # 3. Resolve Statutory APMC Tax & Handling Charges
+        # ------------------------------------------------------------------
+        if self.use_dynamic and self.resolver and self.apmc_commission_pct is None:
+            tax_res = self.resolver.resolve_apmc_tax(dest_state, destination_market)
+            apmc_tax_pct = tax_res.total_tax_pct
+            mandi_fee_rate = (
+                self.mandi_fees_per_qtl if self.mandi_fees_per_qtl is not None else tax_res.handling_per_qtl
+            )
+            notes.append(tax_res.provenance_note)
+        else:
+            apmc_tax_pct = self.apmc_commission_pct or _DEFAULT_APMC_COMMISSION_PCT
+            mandi_fee_rate = self.mandi_fees_per_qtl or _DEFAULT_MANDI_FEES_PER_QTL
+
+        mandi_fees = quantity_quintals * mandi_fee_rate
+
+        # ------------------------------------------------------------------
+        # 4. Resolve ICAR-CIPHET Wastage & Live Ambient Weather
+        # ------------------------------------------------------------------
+        if self.use_dynamic and self.resolver and route_res:
+            wastage_res = self.resolver.resolve_wastage(
+                commodity=commodity,
+                distance_km=distance_km,
+                duration_hours=route_res.duration_hours,
+                src_lat=route_res.src_lat,
+                src_lon=route_res.src_lon,
+                dst_lat=route_res.dst_lat,
+                dst_lon=route_res.dst_lon,
+            )
+            wastage_rate = wastage_res.wastage_rate
+            notes.append(wastage_res.provenance_note)
+        else:
+            wastage_rate = self.wastage_rates.get(
+                commodity.lower(), self.wastage_rates.get("default", 0.08)
+            )
+
         wastage_qty_qtl = quantity_quintals * wastage_rate
         wastage_cost = wastage_qty_qtl * effective_price
-        # Effective sellable quantity
-        sellable_qtl = quantity_quintals * (1 - wastage_rate)
-        gross_revenue = sellable_qtl * effective_price   # recalculate on actual sold qty
-        if wastage_rate > 0:
-            notes.append(f"Wastage: {wastage_rate*100:.1f}% of produce ({wastage_qty_qtl:.3f} q lost)")
 
-        # Transport cost
-        if override_distance_km is not None:
-            distance_km = override_distance_km
-        else:
-            distance_km, dist_note = self._get_distance(source_market, destination_market)
-            if dist_note:
-                notes.append(dist_note)
+        # Effective sellable quantity at destination market
+        sellable_qtl = quantity_quintals - wastage_qty_qtl
+        gross_revenue = sellable_qtl * effective_price
 
-        transport_cost = quantity_quintals * self.tariff_per_qtl_km * distance_km
-        notes.append(f"Transport: ₹{self.tariff_per_qtl_km}/q/km × {quantity_quintals:.3f}q × {distance_km:.0f}km")
-
-        # APMC commission (% of gross_revenue after wastage)
-        apmc_commission = gross_revenue * (self.apmc_commission_pct / 100.0)
-
-        # Mandi fees (flat per quintal)
-        mandi_fees = quantity_quintals * self.mandi_fees_per_qtl
+        # APMC commission levied on actual produce traded in the mandi
+        apmc_commission = gross_revenue * (apmc_tax_pct / 100.0)
 
         # Total costs
         total_costs = transport_cost + apmc_commission + mandi_fees + wastage_cost
@@ -261,7 +298,7 @@ class ProfitCalculator:
         net_profit = gross_revenue - total_costs
         net_profit_per_kg = net_profit / quantity_kg if quantity_kg > 0 else 0.0
 
-        result = ProfitBreakdown(
+        return ProfitBreakdown(
             commodity=commodity,
             quantity_kg=quantity_kg,
             quantity_quintals=quantity_quintals,
@@ -281,22 +318,3 @@ class ProfitCalculator:
             grade=grade,
             notes=notes,
         )
-        logger.info(
-            "ProfitCalculator: %s %.1fkg %s→%s → Net ₹%.2f",
-            commodity, quantity_kg, source_market, destination_market, net_profit,
-        )
-        return result
-
-    def update_from_retrieved_data(self, metadata_list: List[Dict]) -> None:
-        """
-        Update modal prices and transport tariffs from retrieved mandi results.
-        Modifies internal state for subsequent calculate() calls.
-        """
-        for meta in metadata_list:
-            modal_p = meta.get("modal_price", "")
-            if modal_p:
-                try:
-                    _price = float(str(modal_p).replace(",", "").replace("₹", ""))
-                    logger.debug("Retrieved modal price: ₹%.2f/q", _price)
-                except (ValueError, TypeError):
-                    pass

@@ -1,6 +1,3 @@
-first time- 
-./venv/bin/python main.py build
-
 groq api- 
 [SET_YOUR_GROQ_API_KEY]
 
