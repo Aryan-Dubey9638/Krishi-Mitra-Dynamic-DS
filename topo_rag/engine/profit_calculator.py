@@ -24,6 +24,7 @@ from typing import Dict, List, Optional, Tuple
 
 from topo_rag.engine.dynamic_resolvers import (
     DynamicVariableResolver,
+    DynamicMandiPriceResult,
     DynamicRouteResult,
     DynamicTaxResult,
     DynamicTariffResult,
@@ -196,11 +197,14 @@ class ProfitCalculator:
         grade: str = "A",
         grade_premium_pct: float = 0.0,
         override_distance_km: Optional[float] = None,
+        price_provenance_note: Optional[str] = None,
     ) -> ProfitBreakdown:
         """
         Compute full profit breakdown with dynamic resolution.
         """
         notes: List[str] = []
+        if price_provenance_note:
+            notes.append(price_provenance_note)
 
         # Convert kg → quintals (1 quintal = 100 kg)
         quantity_quintals = quantity_kg / 100.0
@@ -236,7 +240,11 @@ class ProfitCalculator:
         # 2. Resolve Dynamic Fuel-Indexed Transport Tariff
         # ------------------------------------------------------------------
         if self.use_dynamic and self.resolver and self.tariff_per_qtl_km is None:
-            tariff_res = self.resolver.resolve_tariff(distance_km, dest_state)
+            tariff_res = self.resolver.resolve_tariff(
+                distance_km=distance_km,
+                dest_state=dest_state,
+                quantity_quintals=quantity_quintals,
+            )
             tariff_rate = tariff_res.tariff_per_qtl_km
             notes.append(tariff_res.provenance_note)
         else:

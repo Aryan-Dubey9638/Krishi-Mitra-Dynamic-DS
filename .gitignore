@@ -164,3 +164,6 @@ cython_debug/
 # VS Code
 .vscode/
 Docs/run.txt
+.DS_Store
+*.DS_Store
+

@@ -1,0 +1,282 @@
+{
+  "andaman & nicobar islands": {
+    "state": "Andaman & Nicobar Islands",
+    "capital_city": "Sri Vijaya Puram",
+    "diesel_price_per_litre": 84.56,
+    "petrol_price_per_litre": 88.66,
+    "lpg_price_14_2kg": 1018.0,
+    "source": "PPAC Official Ready Reckoner Table 8.14 (Source: IOCL)"
+  },
+  "andhra pradesh": {
+    "state": "Andhra Pradesh",
+    "capital_city": "Amaravati",
+    "diesel_price_per_litre": 105.45,
+    "petrol_price_per_litre": 117.78,
+    "lpg_price_14_2kg": 974.5,
+    "source": "PPAC Official Ready Reckoner Table 8.14 (Source: IOCL)"
+  },
+  "arunachal pradesh": {
+    "state": "Arunachal Pradesh",
+    "capital_city": "Itanagar",
+    "diesel_price_per_litre": 87.31,
+    "petrol_price_per_litre": 97.95,
+    "lpg_price_14_2kg": 1007.5,
+    "source": "PPAC Official Ready Reckoner Table 8.14 (Source: IOCL)"
+  },
+  "assam": {
+    "state": "Assam",
+    "capital_city": "Guwahati",
+    "diesel_price_per_litre": 97.23,
+    "petrol_price_per_litre": 105.73,
+    "lpg_price_14_2kg": 991.0,
+    "source": "PPAC Official Ready Reckoner Table 8.14 (Source: IOCL)"
+  },
+  "bihar": {
+    "state": "Bihar",
+    "capital_city": "Patna",
+    "diesel_price_per_litre": 99.36,
+    "petrol_price_per_litre": 113.37,
+    "lpg_price_14_2kg": 1040.0,
+    "source": "PPAC Official Ready Reckoner Table 8.14 (Source: IOCL)"
+  },
+  "chandigarh": {
+    "state": "Chandigarh",
+    "capital_city": "Chandigarh",
+    "diesel_price_per_litre": 89.47,
+    "petrol_price_per_litre": 101.54,
+    "lpg_price_14_2kg": 951.5,
+    "source": "PPAC Official Ready Reckoner Table 8.14 (Source: IOCL)"
+  },
+  "chhattisgarh": {
+    "state": "Chhatisgarh",
+    "capital_city": "Raipur",
+    "diesel_price_per_litre": 101.32,
+    "petrol_price_per_litre": 108.06,
+    "lpg_price_14_2kg": 1013.0,
+    "source": "PPAC Official Ready Reckoner Table 8.14 (Source: IOCL)"
+  },
+  "diu": {
+    "state": "Diu",
+    "capital_city": "Daman",
+    "diesel_price_per_litre": 95.4,
+    "petrol_price_per_litre": 99.5,
+    "lpg_price_14_2kg": 951.5,
+    "source": "PPAC Official Ready Reckoner Table 8.14 (Source: IOCL)"
+  },
+  "delhi": {
+    "state": "Delhi",
+    "capital_city": "New Delhi",
+    "diesel_price_per_litre": 95.2,
+    "petrol_price_per_litre": 102.12,
+    "lpg_price_14_2kg": 942.0,
+    "source": "PPAC Official Ready Reckoner Table 8.14 (Source: IOCL)"
+  },
+  "goa": {
+    "state": "Goa",
+    "capital_city": "Panaji",
+    "diesel_price_per_litre": 95.81,
+    "petrol_price_per_litre": 103.92,
+    "lpg_price_14_2kg": 956.0,
+    "source": "PPAC Official Ready Reckoner Table 8.14 (Source: IOCL)"
+  },
+  "gujarat": {
+    "state": "Gujarat",
+    "capital_city": "Gandhinagar",
+    "diesel_price_per_litre": 98.13,
+    "petrol_price_per_litre": 102.01,
+    "lpg_price_14_2kg": 967.5,
+    "source": "PPAC Official Ready Reckoner Table 8.14 (Source: IOCL)"
+  },
+  "haryana": {
+    "state": "Haryana",
+    "capital_city": "Ambala",
+    "diesel_price_per_litre": 95.9,
+    "petrol_price_per_litre": 103.26,
+    "lpg_price_14_2kg": 959.5,
+    "source": "PPAC Official Ready Reckoner Table 8.14 (Source: IOCL)"
+  },
+  "himachal pradesh": {
+    "state": "Himachal Pradesh",
+    "capital_city": "Shimla",
+    "diesel_price_per_litre": 94.52,
+    "petrol_price_per_litre": 102.54,
+    "lpg_price_14_2kg": 986.5,
+    "source": "PPAC Official Ready Reckoner Table 8.14 (Source: IOCL)"
+  },
+  "jammu & kashmir": {
+    "state": "Jammu & Kashmir",
+    "capital_city": "Srinagar",
+    "diesel_price_per_litre": 96.14,
+    "petrol_price_per_litre": 107.97,
+    "lpg_price_14_2kg": 1058.0,
+    "source": "PPAC Official Ready Reckoner Table 8.14 (Source: IOCL)"
+  },
+  "jharkhand": {
+    "state": "Jharkhand",
+    "capital_city": "Ranchi",
+    "diesel_price_per_litre": 100.49,
+    "petrol_price_per_litre": 105.29,
+    "lpg_price_14_2kg": 999.5,
+    "source": "PPAC Official Ready Reckoner Table 8.14 (Source: IOCL)"
+  },
+  "karnataka": {
+    "state": "Karnataka",
+    "capital_city": "Bengaluru",
+    "diesel_price_per_litre": 98.8,
+    "petrol_price_per_litre": 110.93,
+    "lpg_price_14_2kg": 944.5,
+    "source": "PPAC Official Ready Reckoner Table 8.14 (Source: IOCL)"
+  },
+  "kerala": {
+    "state": "Kerala",
+    "capital_city": "Thiruvananthapuram",
+    "diesel_price_per_litre": 104.4,
+    "petrol_price_per_litre": 115.49,
+    "lpg_price_14_2kg": 951.0,
+    "source": "PPAC Official Ready Reckoner Table 8.14 (Source: IOCL)"
+  },
+  "ladakh": {
+    "state": "Ladakh",
+    "capital_city": "Leh",
+    "diesel_price_per_litre": 93.91,
+    "petrol_price_per_litre": 108.78,
+    "lpg_price_14_2kg": 1179.0,
+    "source": "PPAC Official Ready Reckoner Table 8.14 (Source: IOCL)"
+  },
+  "madhya pradesh": {
+    "state": "Madhya Pradesh",
+    "capital_city": "Bhopal",
+    "diesel_price_per_litre": 99.64,
+    "petrol_price_per_litre": 114.57,
+    "lpg_price_14_2kg": 947.5,
+    "source": "PPAC Official Ready Reckoner Table 8.14 (Source: IOCL)"
+  },
+  "maharashtra": {
+    "state": "Maharashtra",
+    "capital_city": "Mumbai",
+    "diesel_price_per_litre": 97.83,
+    "petrol_price_per_litre": 111.21,
+    "lpg_price_14_2kg": 941.5,
+    "source": "PPAC Official Ready Reckoner Table 8.14 (Source: IOCL)"
+  },
+  "manipur": {
+    "state": "Manipur",
+    "capital_city": "Imphal",
+    "diesel_price_per_litre": 92.57,
+    "petrol_price_per_litre": 106.87,
+    "lpg_price_14_2kg": 1093.5,
+    "source": "PPAC Official Ready Reckoner Table 8.14 (Source: IOCL)"
+  },
+  "meghalaya": {
+    "state": "Meghalaya",
+    "capital_city": "Shillong",
+    "diesel_price_per_litre": 94.1,
+    "petrol_price_per_litre": 102.6,
+    "lpg_price_14_2kg": 1009.0,
+    "source": "PPAC Official Ready Reckoner Table 8.14 (Source: IOCL)"
+  },
+  "mizoram": {
+    "state": "Mizoram",
+    "capital_city": "Aizawl",
+    "diesel_price_per_litre": 95.17,
+    "petrol_price_per_litre": 106.55,
+    "lpg_price_14_2kg": 1094.0,
+    "source": "PPAC Official Ready Reckoner Table 8.14 (Source: IOCL)"
+  },
+  "nagaland": {
+    "state": "Nagaland",
+    "capital_city": "Kohima",
+    "diesel_price_per_litre": 96.16,
+    "petrol_price_per_litre": 104.87,
+    "lpg_price_14_2kg": 961.0,
+    "source": "PPAC Official Ready Reckoner Table 8.14 (Source: IOCL)"
+  },
+  "odisha": {
+    "state": "Odisha",
+    "capital_city": "Bhubaneswar",
+    "diesel_price_per_litre": 100.68,
+    "petrol_price_per_litre": 109.0,
+    "lpg_price_14_2kg": 968.0,
+    "source": "PPAC Official Ready Reckoner Table 8.14 (Source: IOCL)"
+  },
+  "puducherry": {
+    "state": "Puducherry",
+    "capital_city": "Puducherry",
+    "diesel_price_per_litre": 93.79,
+    "petrol_price_per_litre": 103.61,
+    "lpg_price_14_2kg": 954.0,
+    "source": "PPAC Official Ready Reckoner Table 8.14 (Source: IOCL)"
+  },
+  "punjab": {
+    "state": "Punjab",
+    "capital_city": "Jalandhar",
+    "diesel_price_per_litre": 94.76,
+    "petrol_price_per_litre": 104.82,
+    "lpg_price_14_2kg": 971.5,
+    "source": "PPAC Official Ready Reckoner Table 8.14 (Source: IOCL)"
+  },
+  "rajasthan": {
+    "state": "Rajasthan",
+    "capital_city": "Jaipur",
+    "diesel_price_per_litre": 97.78,
+    "petrol_price_per_litre": 112.69,
+    "lpg_price_14_2kg": 945.5,
+    "source": "PPAC Official Ready Reckoner Table 8.14 (Source: IOCL)"
+  },
+  "sikkim": {
+    "state": "Sikkim",
+    "capital_city": "Gangtok",
+    "diesel_price_per_litre": 97.55,
+    "petrol_price_per_litre": 110.6,
+    "lpg_price_14_2kg": 1094.5,
+    "source": "PPAC Official Ready Reckoner Table 8.14 (Source: IOCL)"
+  },
+  "tamil nadu": {
+    "state": "Tamil Nadu",
+    "capital_city": "Chennai",
+    "diesel_price_per_litre": 99.55,
+    "petrol_price_per_litre": 107.77,
+    "lpg_price_14_2kg": 957.5,
+    "source": "PPAC Official Ready Reckoner Table 8.14 (Source: IOCL)"
+  },
+  "telangana": {
+    "state": "Telangana",
+    "capital_city": "Hyderabad",
+    "diesel_price_per_litre": 103.82,
+    "petrol_price_per_litre": 115.73,
+    "lpg_price_14_2kg": 994.0,
+    "source": "PPAC Official Ready Reckoner Table 8.14 (Source: IOCL)"
+  },
+  "tripura": {
+    "state": "Tripura",
+    "capital_city": "Agartala",
+    "diesel_price_per_litre": 93.85,
+    "petrol_price_per_litre": 104.96,
+    "lpg_price_14_2kg": 1102.5,
+    "source": "PPAC Official Ready Reckoner Table 8.14 (Source: IOCL)"
+  },
+  "uttar pradesh": {
+    "state": "Uttar Pradesh",
+    "capital_city": "Lucknow",
+    "diesel_price_per_litre": 95.36,
+    "petrol_price_per_litre": 101.89,
+    "lpg_price_14_2kg": 979.5,
+    "source": "PPAC Official Ready Reckoner Table 8.14 (Source: IOCL)"
+  },
+  "uttarakhand": {
+    "state": "Uttarakhand",
+    "capital_city": "Dehradun",
+    "diesel_price_per_litre": 95.93,
+    "petrol_price_per_litre": 100.55,
+    "lpg_price_14_2kg": 961.0,
+    "source": "PPAC Official Ready Reckoner Table 8.14 (Source: IOCL)"
+  },
+  "west bengal": {
+    "state": "West Bengal",
+    "capital_city": "Kolkata",
+    "diesel_price_per_litre": 99.82,
+    "petrol_price_per_litre": 113.51,
+    "lpg_price_14_2kg": 968.0,
+    "source": "PPAC Official Ready Reckoner Table 8.14 (Source: IOCL)"
+  }
+}

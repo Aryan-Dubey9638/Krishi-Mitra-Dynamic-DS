@@ -17,9 +17,13 @@ Usage
 """
 
 import logging
+import os
 import re
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
+from dotenv import load_dotenv
+
+load_dotenv()
 
 from topo_rag.core.sds_router import SDSRouter, SDSResult
 from topo_rag.stores.vector_stores import NarrativeStore, TabularStore, SearchResult
@@ -96,9 +100,32 @@ def _parse_crop(query: str) -> Optional[str]:
 
 def _parse_locations(query: str) -> Tuple[Optional[str], Optional[str]]:
     """
-    Extract up to 2 location mentions in the ORDER they appear in the query,
-    so "from Bhopal to Pune" correctly gives (Bhopal, Pune) not (Pune, Bhopal).
+    Extract up to 2 location mentions.
+    First tries regex 'from <src> to <dst>' pattern so ANY Indian mandi is captured.
+    Falls back to positional keyword matching across _CITY_KEYWORDS.
     """
+    from_to_match = re.search(
+        r"\bfrom\s+([A-Za-z]+(?:\s+[A-Za-z]+)?)\s+to\s+([A-Za-z]+(?:\s+[A-Za-z]+)?)",
+        query,
+        re.I,
+    )
+    if from_to_match:
+        src_cand = from_to_match.group(1).strip().title()
+        dst_cand = from_to_match.group(2).strip().title()
+        trailing_stop = {"what", "is", "how", "which", "with", "the", "cost", "profit", "transport", "market", "mandi"}
+        
+        dst_words = dst_cand.split()
+        if len(dst_words) > 1 and dst_words[-1].lower() in trailing_stop:
+            dst_cand = dst_words[0].title()
+
+        src_words = src_cand.split()
+        if len(src_words) > 1 and src_words[-1].lower() in trailing_stop:
+            src_cand = src_words[0].title()
+
+        stopwords = {"what", "how", "the", "net", "profit", "grade", "tomato", "onion", "potato", "wheat", "rice"}
+        if src_cand.lower() not in stopwords and dst_cand.lower() not in stopwords and len(src_cand) >= 3 and len(dst_cand) >= 3:
+            return src_cand, dst_cand
+
     q_lower = query.lower()
     # Collect (position_in_query, city_title) pairs for every city found
     hits = []
@@ -458,17 +485,44 @@ class TopoRAGPipeline:
             logger.debug("Profit calc skipped: crop=%s, qty=%s", crop, quantity_kg)
             return None
 
-        # Retrieve modal price from top tabular result
+        # ------------------------------------------------------------------
+        # Mandi Price Discovery Hierarchy:
+        # Tier 1: Real-time Live Agmarknet OGD API (data.gov.in)
+        # Tier 2: Offline TabularStore Vector Search (historical Agmarknet CSV)
+        # Tier 3: Hardcoded Commodity Baseline Defaults
+        # ------------------------------------------------------------------
         modal_price = None
-        for res in reranked:
-            mp = res.metadata.get("modal_price", "")
-            if mp:
-                try:
-                    modal_price = float(str(mp).replace(",", "").replace("₹", "").strip())
-                    logger.info("Using modal price ₹%.2f/q from retrieved data", modal_price)
-                    break
-                except (ValueError, TypeError):
-                    pass
+        price_provenance_note = None
+        dest_market = destination or "Azadpur"
+
+        # Tier 1: Live Agmarknet API via data.gov.in
+        if self.profit_calculator.use_dynamic and self.profit_calculator.resolver:
+            try:
+                _, _, dest_state = self.profit_calculator.resolver._geocode_city(dest_market)
+                live_price_res = self.profit_calculator.resolver.resolve_mandi_price(
+                    commodity=crop,
+                    destination_market=dest_market,
+                    destination_state=dest_state,
+                )
+                if live_price_res:
+                    modal_price = live_price_res.modal_price
+                    price_provenance_note = live_price_res.provenance_note
+                    logger.info("Using LIVE Mandi Price ₹%.2f/q from data.gov.in (%s)", modal_price, live_price_res.market)
+            except Exception as e:
+                logger.warning("Live mandi price resolution failed: %s", e)
+
+        # Tier 2: Offline TabularStore (CSV Index) Fallback
+        if modal_price is None:
+            for res in reranked:
+                mp = res.metadata.get("modal_price", "")
+                if mp:
+                    try:
+                        modal_price = float(str(mp).replace(",", "").replace("₹", "").strip())
+                        price_provenance_note = f"Mandi Price: ₹{modal_price:,.2f}/qtl [Historical baseline from TabularStore (Agmarknet CSV)]"
+                        logger.info("Using modal price ₹%.2f/q from retrieved data", modal_price)
+                        break
+                    except (ValueError, TypeError):
+                        pass
 
         # If reranked was mostly narrative and didn't contain modal_price, search tabular store for destination + crop
         if modal_price is None and destination and crop and hasattr(self, 'tabular_store') and self.tabular_store.count > 0:
@@ -478,18 +532,20 @@ class TopoRAGPipeline:
                     mp = res.metadata.get("modal_price", "")
                     if mp:
                         modal_price = float(str(mp).replace(",", "").replace("₹", "").strip())
+                        price_provenance_note = f"Mandi Price: ₹{modal_price:,.2f}/qtl [Historical baseline from TabularStore (Agmarknet CSV)]"
                         logger.info("Retrieved modal price ₹%.2f/q for %s in %s from TabularStore", modal_price, crop, destination)
                         break
             except Exception as e:
                 logger.debug("Tabular fallback search failed: %s", e)
 
+        # Tier 3: Baseline Commodity Defaults
         if modal_price is None:
-            # Use sensible defaults per commodity
             defaults = {
                 "Tomato": 2200.0, "Onion": 1800.0, "Potato": 1200.0,
                 "Wheat": 2100.0, "Rice": 3000.0, "Maize": 1800.0,
             }
             modal_price = defaults.get(crop, 2000.0)
+            price_provenance_note = f"Mandi Price: ₹{modal_price:,.2f}/qtl [Benchmark Default]"
             logger.info("No modal price from retrieval; using default ₹%.2f/q for %s", modal_price, crop)
 
         grade_premium = 5.0 if grade == "A" else (0.0 if grade == "B" else -5.0)
@@ -502,6 +558,7 @@ class TopoRAGPipeline:
             destination_market=destination or "Azadpur",
             grade=grade,
             grade_premium_pct=grade_premium,
+            price_provenance_note=price_provenance_note,
         )
 
     # ------------------------------------------------------------------

@@ -79,6 +79,8 @@ class TestProfitCalculator(unittest.TestCase):
             tariff_per_qtl_km=0.80,
             apmc_commission_pct=2.0,
             mandi_fees_per_qtl=15.0,
+            wastage_rates={"tomato": 0.15, "onion": 0.06, "potato": 0.04, "wheat": 0.02, "default": 0.08},
+            use_dynamic_resolvers=False,
         )
 
     def test_net_profit_formula_correctness(self):
