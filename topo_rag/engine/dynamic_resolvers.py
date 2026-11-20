@@ -28,7 +28,7 @@ import json
 import logging
 import math
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 from dotenv import load_dotenv
@@ -50,7 +50,7 @@ _HEADERS: Dict[str, str] = {
 _GEOCODE_CACHE: Dict[str, Tuple[float, float, str]] = {}
 _ROUTE_CACHE: Dict[Tuple[str, str], Tuple[float, float]] = {}
 _WEATHER_CACHE: Dict[Tuple[float, float], Tuple[float, float]] = {}
-_MANDI_PRICE_CACHE: Dict[Tuple[str, str, str], DynamicMandiPriceResult] = {}
+_MANDI_PRICE_CACHE: Dict[Tuple[str, str], DynamicMandiPriceResult] = {}
 
 
 # ---------------------------------------------------------------------------
@@ -294,28 +294,6 @@ class DynamicMandiPriceResult:
     arrival_date: str
     is_live: bool
     provenance_note: str
-    reporting_mandis: list[str] = field(default_factory=list)
-
-    def summary(self) -> str:
-        lines = [
-            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-            "  Live Mandi Price Report",
-            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-            f"  Commodity   : {self.commodity}",
-            f"  Market      : {self.market}" + (f" ({self.state})" if self.state and self.state != "India" and self.state.lower() not in self.market.lower() else ""),
-            f"  Arrival Date: {self.arrival_date}",
-            f"  Modal Price : ₹{self.modal_price:,.2f} / quintal  (₹{self.modal_price/100:,.2f} / kg)",
-            f"  Price Range : ₹{self.min_price:,.2f} – ₹{self.max_price:,.2f} / quintal",
-            f"  Status      : {'LIVE Feed (Agmarknet / data.gov.in)' if self.is_live else 'Historical Baseline'}",
-            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-        ]
-        if self.reporting_mandis:
-            lines.append("  Sample Reporting Mandis Today:")
-            for m in self.reporting_mandis[:3]:
-                lines.append(f"    • {m}")
-        if self.provenance_note:
-            lines.append(f"  Source: {self.provenance_note}")
-        return "\n".join(lines)
 
 
 @dataclass
