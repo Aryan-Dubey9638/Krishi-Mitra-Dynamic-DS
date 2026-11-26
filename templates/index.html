@@ -29,15 +29,15 @@
             <div class="chat-container" id="chat-container">
                 <div class="message bot-message">
                     <div class="advisory-text">
-                        Hello! I am <strong>Krishi Mitra</strong>, your agricultural market advisor. Ask me about net profits, mandi prices, transport costs, or APMC regulations.
+                        नमस्ते! मैं <strong>कृषि मित्र (Krishi Mitra)</strong> हूँ, आपका डिजिटल कृषि व मंडी सलाहकार। आप मुझसे हिंदी (देवनागरी) या अंग्रेजी में शुद्ध मुनाफा, मंडी भाव, और भाड़े की जानकारी ले सकते हैं।
                         <br><br>
-                        <em>Try: "What is my net profit for 500kg Grade-A Tomatoes from Pune to Azadpur?"</em>
+                        <em>उदाहरण: "पुणे से आजादपुर 500 किलो टमाटर ले जाने पर क्या फायदा होगा?" या "500kg Onion from Nashik to Delhi"</em>
                     </div>
                 </div>
             </div>
 
             <div class="input-container">
-                <input type="text" id="user-input" placeholder="Ask about profits, prices, transport costs…" onkeypress="handleKeyPress(event)">
+                <input type="text" id="user-input" placeholder="हिंदी या English में पूछें (उदा. 500 किलो टमाटर पुणे से आजादपुर)…" onkeypress="handleKeyPress(event)">
                 <button onclick="sendMessage()" id="send-button">Send</button>
             </div>
         </main>
@@ -49,6 +49,9 @@
         }
 
         async function sendMessage() {
+            const btn = document.getElementById('send-button');
+            if (btn.disabled) return;
+
             const inputField = document.getElementById('user-input');
             const message = inputField.value.trim();
             if (!message) return;
@@ -56,7 +59,6 @@
             appendMessage(message, 'user-message', null, null);
             inputField.value = '';
 
-            const btn = document.getElementById('send-button');
             btn.disabled = true;
             btn.innerText = '…';
 
@@ -104,44 +106,53 @@
             const calcEl = botBubble.querySelector('.calc-block');
             const advisoryEl = botBubble.querySelector('.advisory-text');
             let advisoryText = '';
+            let streamDone = false;
 
-            while (true) {
-                const { value, done } = await reader.read();
-                if (done) break;
-
-                buffer += decoder.decode(value, { stream: true });
-
-                // SSE lines: split on double-newline boundaries
-                const events = buffer.split('\n\n');
-                buffer = events.pop();   // keep any incomplete event in buffer
-
-                for (const eventStr of events) {
-                    const line = eventStr.trim();
-                    if (!line.startsWith('data:')) continue;
-
-                    let payload;
-                    try {
-                        payload = JSON.parse(line.slice(5).trim());
-                    } catch {
-                        continue;
+            const processEvent = (eventStr) => {
+                const line = eventStr.trim();
+                if (!line.startsWith('data:')) return;
+                let payload;
+                try {
+                    payload = JSON.parse(line.slice(5).trim());
+                } catch {
+                    return;
+                }
+                if (payload.type === 'calc') {
+                    if (payload.content) {
+                        calcEl.textContent = payload.content;
+                        calcEl.style.display = 'block';
                     }
+                } else if (payload.type === 'token') {
+                    advisoryText += payload.content;
+                    advisoryEl.innerHTML = advisoryText.replace(/\n/g, '<br>') + '<span class="cursor">▍</span>';
+                    const chat = document.getElementById('chat-container');
+                    chat.scrollTop = chat.scrollHeight;
+                } else if (payload.type === 'done') {
+                    streamDone = true;
+                }
+            };
 
-                    if (payload.type === 'calc') {
-                        if (payload.content) {
-                            calcEl.textContent = payload.content;
-                            calcEl.style.display = 'block';
-                        }
-                    } else if (payload.type === 'token') {
-                        advisoryText += payload.content;
-                        // Replace newlines with <br> for display
-                        advisoryEl.innerHTML = advisoryText.replace(/\n/g, '<br>');
-                        // Keep chat scrolled to bottom as tokens arrive
-                        const chat = document.getElementById('chat-container');
-                        chat.scrollTop = chat.scrollHeight;
-                    } else if (payload.type === 'done') {
-                        break;
+            while (!streamDone) {
+                const { value, done } = await reader.read();
+                if (value) {
+                    buffer += decoder.decode(value, { stream: !done });
+                    const events = buffer.split('\n\n');
+                    buffer = events.pop();
+                    for (const eventStr of events) {
+                        processEvent(eventStr);
+                        if (streamDone) break;
                     }
                 }
+                if (done) {
+                    if (buffer.trim()) processEvent(buffer);
+                    break;
+                }
+            }
+
+            if (advisoryText.trim()) {
+                advisoryEl.innerHTML = advisoryText.replace(/\n/g, '<br>');
+            } else {
+                advisoryEl.textContent = 'सलाह उपलब्ध नहीं हो सकी (Advisory unavailable for this turn).';
             }
         }
 

@@ -294,6 +294,7 @@ class DynamicMandiPriceResult:
     arrival_date: str
     is_live: bool
     provenance_note: str
+    provenance_note_hi: str = ""
 
 
 @dataclass
@@ -308,6 +309,7 @@ class DynamicRouteResult:
     dst_lon: float
     is_live: bool
     provenance_note: str
+    provenance_note_hi: str = ""
 
 
 @dataclass
@@ -319,6 +321,7 @@ class DynamicTaxResult:
     handling_per_qtl: float
     citation: str
     provenance_note: str
+    provenance_note_hi: str = ""
 
 
 @dataclass
@@ -327,6 +330,7 @@ class DynamicTariffResult:
     diesel_rate_used: float
     tier: str
     provenance_note: str
+    provenance_note_hi: str = ""
 
 
 @dataclass
@@ -336,6 +340,131 @@ class DynamicWastageResult:
     ambient_humidity_pct: float
     is_perishable: bool
     provenance_note: str
+    provenance_note_hi: str = ""
+
+
+@dataclass
+class DynamicSubsidyResult:
+    """Full breakdown of applicable government scheme benefits for a transaction."""
+    scheme_name: str
+    transport_subsidy_amount: float       # ₹ offset against freight cost
+    mandi_fee_waiver_amount: float        # ₹ offset against APMC tax + handling
+    price_support_amount: float           # ₹ deficiency payment (PM-AASHA PDPS)
+    total_subsidy_benefit: float          # sum of all three
+    is_eligible: bool
+    citation: str
+    provenance_note: str
+    msp_benchmark_per_qtl: float = 0.0    # Statutory MSP if crop has one
+    msp_advisory_note: str = ""           # PSS/FCI advisory if non-PDPS below MSP
+    channel_details: str = ""             # Kisan Rail / Road / FPO eligibility note
+    provenance_note_hi: str = ""
+    msp_advisory_note_hi: str = ""
+    channel_details_hi: str = ""
+
+
+_STATE_HI_NAMES: Dict[str, str] = {
+    "maharashtra": "महाराष्ट्र",
+    "delhi": "दिल्ली (NCT)",
+    "nct of delhi": "दिल्ली (NCT)",
+    "delhi (nct)": "दिल्ली (NCT)",
+    "madhya pradesh": "मध्य प्रदेश",
+    "uttar pradesh": "उत्तर प्रदेश",
+    "punjab": "पंजाब",
+    "haryana": "हरियाणा",
+    "karnataka": "कर्नाटक",
+    "rajasthan": "राजस्थान",
+    "gujarat": "गुजरात",
+    "tamil nadu": "तमिलनाडु",
+    "andhra pradesh": "आंध्र प्रदेश",
+    "telangana": "तेलंगाना",
+    "bihar": "बिहार",
+    "west bengal": "पश्चिम बंगाल",
+    "odisha": "ओडिशा",
+    "kerala": "केरल",
+    "keralam": "केरल",
+    "himachal pradesh": "हिमाचल प्रदेश",
+    "uttarakhand": "उत्तराखंड",
+    "national benchmark": "राष्ट्रीय मानक",
+    "default": "राष्ट्रीय मानक",
+}
+
+_CROP_HI_NAMES: Dict[str, str] = {
+    "tomato": "टमाटर",
+    "onion": "प्याज",
+    "potato": "आलू",
+    "wheat": "गेहूं",
+    "rice": "चावल",
+    "paddy": "धान",
+    "maize": "मक्का",
+    "soybean": "सोयाबीन",
+    "soyabean": "सोयाबीन",
+    "cotton": "कपास",
+    "sugarcane": "गन्ना",
+    "mustard": "सरसों",
+    "groundnut": "मूंगफली",
+    "gram": "चना",
+    "tur": "अरहर / तूर",
+    "arhar": "अरहर / तूर",
+    "moong": "मूंग",
+    "urad": "उड़द",
+    "sunflower": "सूरजमुखी",
+    "mango": "आम",
+    "banana": "केला",
+    "grapes": "अंगूर",
+    "garlic": "लहसुन",
+}
+
+_METRO_REGION_DISTRICTS: Dict[str, Tuple[str, str, Tuple[str, ...]]] = {
+    "delhi": (
+        "Delhi-NCR",
+        "दिल्ली-एनसीआर",
+        (
+            "gurgaon", "gurugram", "faridabad", "sonipat", "sonepat",
+            "ghaziabad", "gautam budh", "noida", "bahadurgarh",
+            "jhajjar", "baghpat", "palwal", "meerut",
+        ),
+    ),
+    "mumbai": (
+        "Mumbai Metropolitan",
+        "मुंबई महानगर",
+        ("mumbai", "thane", "raigad", "palghar", "navi mumbai", "vashi", "kalyan", "panvel"),
+    ),
+    "bengaluru": (
+        "Bengaluru Metro",
+        "बेंगलुरु क्षेत्र",
+        ("bengaluru", "bangalore", "kolar", "ramanagara", "chikkaballapur"),
+    ),
+    "hyderabad": (
+        "Hyderabad Metro",
+        "हैदराबाद क्षेत्र",
+        ("hyderabad", "rangareddy", "medchal", "sangareddy"),
+    ),
+}
+
+_NEIGHBORING_STATES: Dict[str, Tuple[str, ...]] = {
+    "delhi": ("haryana", "uttar pradesh", "rajasthan"),
+    "maharashtra": ("madhya pradesh", "gujarat", "karnataka", "telangana"),
+    "madhya pradesh": ("maharashtra", "uttar pradesh", "rajasthan", "gujarat"),
+    "uttar pradesh": ("haryana", "delhi", "rajasthan", "madhya pradesh", "bihar"),
+    "punjab": ("haryana", "himachal pradesh", "rajasthan"),
+    "haryana": ("punjab", "uttar pradesh", "rajasthan", "delhi"),
+    "karnataka": ("maharashtra", "andhra pradesh", "telangana", "tamil nadu"),
+    "gujarat": ("maharashtra", "rajasthan", "madhya pradesh"),
+}
+
+
+def _state_to_hi(state_name: str) -> str:
+    clean = (state_name or "default").strip().lower()
+    if clean in _STATE_HI_NAMES:
+        return _STATE_HI_NAMES[clean]
+    for k, v in _STATE_HI_NAMES.items():
+        if k in clean or clean in k:
+            return v
+    return state_name.title()
+
+
+def _crop_to_hi(crop_name: str) -> str:
+    return _CROP_HI_NAMES.get((crop_name or "").strip().lower(), crop_name.title())
 
 
 # ---------------------------------------------------------------------------
@@ -355,6 +484,79 @@ class DynamicVariableResolver:
     # 0. Live Mandi Prices (Agmarknet via data.gov.in)
     # -----------------------------------------------------------------------
 
+    def _fetch_ogd_records(
+        self, base_url: str, params: Dict[str, Any], timeout_sec: float = 10.0
+    ) -> list:
+        """Query data.gov.in with browser User-Agent and one retry on transient timeout."""
+        req_headers = {
+            "User-Agent": (
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            )
+        }
+        for attempt in range(2):
+            try:
+                resp = requests.get(base_url, params=params, headers=req_headers, timeout=timeout_sec)
+                if resp.status_code == 200:
+                    return resp.json().get("records", [])
+            except Exception as e:
+                if attempt == 0:
+                    logger.debug("data.gov.in query attempt 1 failed (%s); retrying…", e)
+                else:
+                    logger.warning("data.gov.in query failed: %s", e)
+        return []
+
+    @staticmethod
+    def _extract_valid_prices(subset: list) -> list:
+        prices = []
+        for r in subset:
+            try:
+                p = float(str(r.get("modal_price", 0)).replace(",", ""))
+                if p > 0:
+                    prices.append(p)
+            except (ValueError, TypeError):
+                continue
+        return prices
+
+    def _build_live_benchmark(
+        self,
+        subset: list,
+        norm_commodity: str,
+        market_label: str,
+        state_label: str,
+        scope_en: str,
+        scope_hi: str,
+        cache_key: Tuple[str, str],
+    ) -> Optional[DynamicMandiPriceResult]:
+        valid_prices = self._extract_valid_prices(subset)
+        if not valid_prices:
+            return None
+        avg_modal = round(sum(valid_prices) / len(valid_prices), 2)
+        arr_date = subset[0].get("arrival_date", "Today")
+        n_mandis = len(valid_prices)
+        note = (
+            f"Mandi Price: ₹{avg_modal:,.2f}/qtl [LIVE Agmarknet {scope_en} "
+            f"via data.gov.in ({n_mandis} mandis reporting), Date: {arr_date}]"
+        )
+        note_hi = (
+            f"मंडी भाव: ₹{avg_modal:,.2f}/क्विंटल [लाइव एगमार्कनेट {scope_hi} "
+            f"— data.gov.in ({n_mandis} मंडियों का औसत), दिनांक: {arr_date}]"
+        )
+        res = DynamicMandiPriceResult(
+            modal_price=avg_modal,
+            min_price=min(valid_prices),
+            max_price=max(valid_prices),
+            commodity=norm_commodity,
+            market=market_label,
+            state=state_label,
+            arrival_date=arr_date,
+            is_live=True,
+            provenance_note=note,
+            provenance_note_hi=note_hi,
+        )
+        _MANDI_PRICE_CACHE[cache_key] = res
+        return res
+
     def resolve_mandi_price(
         self,
         commodity: str,
@@ -364,18 +566,11 @@ class DynamicVariableResolver:
         """
         Fetch real-time daily mandi modal price from Agmarknet API on data.gov.in.
 
-        Parameters
-        ----------
-        commodity : str
-            Commodity name (e.g. 'Tomato', 'Onion', 'Potato', 'Wheat').
-        destination_market : str
-            Target destination mandi (e.g. 'Pune', 'Azadpur', 'Mumbai').
-        destination_state : Optional[str]
-            Destination state name (e.g. 'Maharashtra', 'Delhi').
-
-        Returns
-        -------
-        DynamicMandiPriceResult or None if API unavailable / no arrivals reported.
+        Hierarchy within LIVE Agmarknet (before falling back to historical CSV):
+          Tier 1A: Exact / substring market or district match in live records
+          Tier 1B: Destination state live average
+          Tier 1C: Metro/NCR or neighboring-state live regional benchmark
+          Tier 1D: Live national Agmarknet benchmark across reporting mandis today
         """
         cache_key = (commodity.strip().lower(), destination_market.strip().lower())
         if cache_key in _MANDI_PRICE_CACHE:
@@ -389,64 +584,76 @@ class DynamicVariableResolver:
         # Canonical commodity mapping for data.gov.in
         synonyms = {
             "soybean": "Soyabean",
+            "soyabean": "Soyabean",
             "paddy": "Paddy(Dhan)(Common)",
             "chana": "Bengal Gram(Gram)(Whole)",
             "gram": "Bengal Gram(Gram)(Whole)",
+            "tur": "Red gram/Arhar/Tur(whole)",
+            "arhar": "Red gram/Arhar/Tur(whole)",
+            "moong": "Green Gram(Moong)(Whole)",
+            "urad": "Black Gram(Urd Beans)(Whole)",
+            "chilli": "Green Chilli",
         }
         c_clean = commodity.strip().lower()
         norm_commodity = synonyms.get(c_clean, commodity.strip().title())
         m_clean = destination_market.strip().lower()
+        m_stem = m_clean.replace("apmc", "").strip()
 
         resource_id = "9ef84268-d588-465a-a308-a864a43d0070"
         base_url = f"https://api.data.gov.in/resource/{resource_id}"
-        req_headers = {
-            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-        }
 
-        records = []
-        # Strategy A: If state is known, query commodity + state for high precision & speed
+        state_aliases = {
+            "Delhi": "NCT of Delhi",
+            "Kerala": "Keralam",
+            "Orissa": "Odisha",
+            "Chhattisgarh": "Chattisgarh",
+        }
+        records: list = []
+
+        # Strategy A: Query commodity + state first for speed when state matches
         if destination_state and destination_state.lower() != "default":
             s_title = destination_state.strip().title()
-            state_aliases = {
-                "Delhi": "NCT of Delhi",
-                "Kerala": "Keralam",
-                "Orissa": "Odisha",
-            }
             query_state = state_aliases.get(s_title, s_title)
-            url_state = (
-                f"{base_url}?api-key={api_key}&format=json&limit=50"
-                f"&filters%5Bcommodity%5D={requests.utils.quote(norm_commodity)}"
-                f"&filters%5Bstate%5D={requests.utils.quote(query_state)}"
+            records = self._fetch_ogd_records(
+                base_url,
+                {
+                    "api-key": api_key,
+                    "format": "json",
+                    "limit": 100,
+                    "filters[commodity]": norm_commodity,
+                    "filters[state]": query_state,
+                },
+                timeout_sec=8.0,
             )
-            try:
-                resp = requests.get(url_state, headers=req_headers, timeout=5.0)
-                if resp.status_code == 200:
-                    records = resp.json().get("records", [])
-            except Exception as e:
-                logger.warning("data.gov.in state query failed: %s", e)
 
-        # Strategy B: If no state records or no state provided, query by commodity alone
+        # Strategy B: If state query had no exact records, fetch nationwide live records (limit=500)
         if not records:
-            url_commodity = (
-                f"{base_url}?api-key={api_key}&format=json&limit=50"
-                f"&filters%5Bcommodity%5D={requests.utils.quote(norm_commodity)}"
+            records = self._fetch_ogd_records(
+                base_url,
+                {
+                    "api-key": api_key,
+                    "format": "json",
+                    "limit": 500,
+                    "filters[commodity]": norm_commodity,
+                },
+                timeout_sec=10.0,
             )
-            try:
-                resp = requests.get(url_commodity, headers=req_headers, timeout=5.0)
-                if resp.status_code == 200:
-                    records = resp.json().get("records", [])
-            except Exception as e:
-                logger.warning("data.gov.in commodity query failed: %s", e)
 
         if not records:
             logger.info("No live mandi records found on data.gov.in for commodity=%s, market=%s", norm_commodity, destination_market)
             return None
 
-        # 1. Look for exact or substring market match
+        # Tier 1A: Exact or substring market/district match
         matched_record = None
         for r in records:
             r_market = r.get("market", "").lower()
-            if m_clean in r_market or r_market in m_clean or m_clean.replace("apmc", "").strip() in r_market:
+            r_dist = r.get("district", "").lower()
+            if (
+                m_clean in r_market
+                or r_market in m_clean
+                or (m_stem and m_stem in r_market)
+                or (m_stem and m_stem in r_dist)
+            ):
                 matched_record = r
                 break
 
@@ -460,7 +667,14 @@ class DynamicVariableResolver:
                 st_name = matched_record.get("state", destination_state or "").strip()
 
                 if modal_p > 0:
-                    note = f"Mandi Price: ₹{modal_p:,.2f}/qtl [LIVE Agmarknet OGD API (data.gov.in) — {mkt_name}, {st_name}, Date: {arr_date}]"
+                    note = (
+                        f"Mandi Price: ₹{modal_p:,.2f}/qtl [LIVE Agmarknet OGD API (data.gov.in) "
+                        f"— {mkt_name}, {st_name}, Date: {arr_date}]"
+                    )
+                    note_hi = (
+                        f"मंडी भाव: ₹{modal_p:,.2f}/क्विंटल [लाइव एगमार्कनेट (data.gov.in) "
+                        f"— {mkt_name}, {_state_to_hi(st_name)}, दिनांक: {arr_date}]"
+                    )
                     res = DynamicMandiPriceResult(
                         modal_price=modal_p,
                         min_price=min_p,
@@ -471,51 +685,92 @@ class DynamicVariableResolver:
                         arrival_date=arr_date,
                         is_live=True,
                         provenance_note=note,
+                        provenance_note_hi=note_hi,
                     )
                     _MANDI_PRICE_CACHE[cache_key] = res
                     return res
             except (ValueError, TypeError) as e:
                 logger.warning("Error parsing live mandi price values: %s", e)
 
-        # 2. Regional fallback: If market not explicitly listed today, compute regional average
-        if destination_state and destination_state.lower() != "default":
-            s_clean = destination_state.strip().lower()
+        # Tier 1B: Destination state live benchmark
+        s_clean = (destination_state or "").strip().lower()
+        if s_clean and s_clean != "default":
             state_records = [
                 r for r in records
                 if s_clean in r.get("state", "").lower() or r.get("state", "").lower() in s_clean
             ]
-            valid_prices = []
-            for r in state_records:
-                try:
-                    p = float(str(r.get("modal_price", 0)).replace(",", ""))
-                    if p > 0:
-                        valid_prices.append(p)
-                except (ValueError, TypeError):
-                    continue
-
-            if valid_prices:
-                avg_modal = round(sum(valid_prices) / len(valid_prices), 2)
-                arr_date = state_records[0].get("arrival_date", "Today")
+            if state_records:
                 st_name = state_records[0].get("state", destination_state).strip()
-                note = (
-                    f"Mandi Price: ₹{avg_modal:,.2f}/qtl [LIVE Agmarknet Regional Benchmark "
-                    f"for {st_name} via data.gov.in ({len(valid_prices)} mandis reporting), Date: {arr_date}]"
+                res = self._build_live_benchmark(
+                    subset=state_records,
+                    norm_commodity=norm_commodity,
+                    market_label=f"{destination_market} (Regional {st_name})",
+                    state_label=st_name,
+                    scope_en=f"Regional Benchmark for {st_name}",
+                    scope_hi=f"{_state_to_hi(st_name)} क्षेत्रीय औसत",
+                    cache_key=cache_key,
                 )
-                res = DynamicMandiPriceResult(
-                    modal_price=avg_modal,
-                    min_price=min(valid_prices),
-                    max_price=max(valid_prices),
-                    commodity=norm_commodity,
-                    market=f"{destination_market} (Regional {st_name})",
-                    state=st_name,
-                    arrival_date=arr_date,
-                    is_live=True,
-                    provenance_note=note,
-                )
-                _MANDI_PRICE_CACHE[cache_key] = res
-                return res
+                if res:
+                    return res
 
-        return None
+        # Tier 1C: Metro / NCR or neighboring-state live regional benchmark
+        metro_key = None
+        if m_stem in ("azadpur", "delhi", "new delhi", "keshopur", "narela") or s_clean == "delhi":
+            metro_key = "delhi"
+        elif m_stem in _METRO_REGION_DISTRICTS:
+            metro_key = m_stem
+
+        if metro_key and metro_key in _METRO_REGION_DISTRICTS:
+            label_en, label_hi, dist_tokens = _METRO_REGION_DISTRICTS[metro_key]
+            metro_records = [
+                r for r in records
+                if any(
+                    tok in (r.get("district", "") + " " + r.get("market", "")).lower()
+                    for tok in dist_tokens
+                )
+            ]
+            if metro_records:
+                res = self._build_live_benchmark(
+                    subset=metro_records,
+                    norm_commodity=norm_commodity,
+                    market_label=f"{destination_market} ({label_en} Live)",
+                    state_label=label_en,
+                    scope_en=f"{label_en} Benchmark (nearest live NCR/Metro mandis)",
+                    scope_hi=f"{label_hi} की निकटतम लाइव मंडियों का औसत",
+                    cache_key=cache_key,
+                )
+                if res:
+                    return res
+
+        if s_clean in _NEIGHBORING_STATES:
+            nbrs = _NEIGHBORING_STATES[s_clean]
+            nbr_records = [
+                r for r in records
+                if any(n in r.get("state", "").lower() for n in nbrs)
+            ]
+            if nbr_records:
+                res = self._build_live_benchmark(
+                    subset=nbr_records,
+                    norm_commodity=norm_commodity,
+                    market_label=f"{destination_market} (Adjacent States)",
+                    state_label=destination_state or "Regional",
+                    scope_en=f"Neighboring States Benchmark (nearest live around {destination_market.title()})",
+                    scope_hi=f"{destination_market.title()} के निकटवर्ती राज्यों की लाइव मंडियों का औसत",
+                    cache_key=cache_key,
+                )
+                if res:
+                    return res
+
+        # Tier 1D: Live national Agmarknet benchmark across all live records today
+        return self._build_live_benchmark(
+            subset=records,
+            norm_commodity=norm_commodity,
+            market_label=f"{destination_market} (All-India Live Benchmark)",
+            state_label=destination_state or "India",
+            scope_en="National Benchmark",
+            scope_hi="राष्ट्रीय लाइव मंडी औसत",
+            cache_key=cache_key,
+        )
 
     # -----------------------------------------------------------------------
     # Geocoding & Highway Routing
@@ -605,6 +860,7 @@ class DynamicVariableResolver:
                 dst_lon=dst_lon,
                 is_live=True,
                 provenance_note=f"Road Distance: {dist_km:.1f} km ({dur_hrs:.1f}h truck transit via OSRM National Highway Network)",
+                provenance_note_hi=f"सड़क दूरी: {dist_km:.1f} किमी ({dur_hrs:.1f} घंटे ट्रक यात्रा — OSRM राष्ट्रीय राजमार्ग नेटवर्क)",
             )
 
         try:
@@ -633,6 +889,7 @@ class DynamicVariableResolver:
                         dst_lon=dst_lon,
                         is_live=True,
                         provenance_note=f"Road Distance: {dist_km:.1f} km ({dur_hrs:.1f}h truck transit via OSRM National Highway Network)",
+                        provenance_note_hi=f"सड़क दूरी: {dist_km:.1f} किमी ({dur_hrs:.1f} घंटे ट्रक यात्रा — OSRM राष्ट्रीय राजमार्ग नेटवर्क)",
                     )
         except Exception as e:
             logger.warning("OSRM highway routing query failed: %s", e)
@@ -662,6 +919,7 @@ class DynamicVariableResolver:
             dst_lon=dst_lon,
             is_live=False,
             provenance_note=f"Road Distance: {road_km:.1f} km (~{dur_hrs:.1f}h truck transit estimated via geospatial coordinate network)",
+            provenance_note_hi=f"सड़क दूरी: {road_km:.1f} किमी (~{dur_hrs:.1f} घंटे ट्रक यात्रा — भौगोलिक निर्देशांक अनुमान)",
         )
 
     # -----------------------------------------------------------------------
@@ -695,6 +953,10 @@ class DynamicVariableResolver:
             f"APMC Tax: {total_tax_pct:.2f}% ({mkt_fee:.2f}% Market Fee + "
             f"{dev_cess:.2f}% Cess) as notified under {citation}"
         )
+        note_hi = (
+            f"मंडी कर (APMC): {total_tax_pct:.2f}% ({mkt_fee:.2f}% मंडी शुल्क + "
+            f"{dev_cess:.2f}% उपकर) — {_state_to_hi(matched_sched['state_name'])} मंडी अधिनियम के अनुसार"
+        )
 
         return DynamicTaxResult(
             state_name=matched_sched["state_name"],
@@ -704,6 +966,7 @@ class DynamicVariableResolver:
             handling_per_qtl=handling,
             citation=citation,
             provenance_note=note,
+            provenance_note_hi=note_hi,
         )
 
     # -----------------------------------------------------------------------
@@ -749,12 +1012,15 @@ class DynamicVariableResolver:
         # Vehicle selection & payload scale
         if quantity_quintals >= 80:     # >= 8 MT: Heavy Full Truckload (10/12-wheel multi-axle)
             vehicle_type = "Heavy FTL Multi-Axle Truck (>8MT)"
+            vehicle_type_hi = "भारी मल्टी-एक्सल ट्रक (>8 टन)"
             base_tariff = 0.68 if distance_km >= 600 else 0.78
         elif quantity_quintals >= 25:   # 2.5 - 8 MT: Medium Commercial Vehicle (6-wheel Eicher)
             vehicle_type = "Medium Commercial Vehicle (MCV 3-8MT)"
+            vehicle_type_hi = "मध्यम मालवाहक वाहन (3-8 टन)"
             base_tariff = 0.76 if distance_km >= 600 else 0.86
         else:                           # < 2.5 MT: Light Commercial Vehicle (Tata Ace / Bolero Pickup)
             vehicle_type = "Short-haul LCV / Pickup (<2.5MT)"
+            vehicle_type_hi = "छोटा पिकअप वाहन (<2.5 टन)"
             base_tariff = 0.85 if distance_km >= 600 else 0.94
 
         # Fuel weighting in road logistics = ~45% of running cost
@@ -765,12 +1031,17 @@ class DynamicVariableResolver:
             f"Transport Tariff: ₹{adjusted_tariff:.2f}/q/km [{vehicle_type}, "
             f"{distance_km:.0f}km haul, indexed to {source_citation} HSD diesel @ ₹{diesel_price:.2f}/L in {clean_state.title()}]"
         )
+        note_hi = (
+            f"परिवहन दर: ₹{adjusted_tariff:.2f}/क्विंटल/किमी [{vehicle_type_hi}, "
+            f"{distance_km:.0f} किमी दूरी, {_state_to_hi(clean_state)} में PPAC डीजल ₹{diesel_price:.2f}/लीटर पर आधारित]"
+        )
 
         return DynamicTariffResult(
             tariff_per_qtl_km=adjusted_tariff,
             diesel_rate_used=diesel_price,
             tier=vehicle_type,
             provenance_note=note,
+            provenance_note_hi=note_hi,
         )
 
     # -----------------------------------------------------------------------
@@ -852,9 +1123,14 @@ class DynamicVariableResolver:
             adjusted_rate = round(min(base_rate * thermal_factor * humidity_factor * duration_factor, 0.28), 3)
 
             reefer_tip = " [Reefer recommended for >400km]" if distance_km >= 400 else ""
+            reefer_tip_hi = " [400 किमी से अधिक दूरी के लिए शीत/रीफर वाहन की सलाह]" if distance_km >= 400 else ""
             note = (
                 f"Transit Wastage: {adjusted_rate * 100:.1f}% [ICAR-CIPHET base {base_rate * 100:.1f}% + "
                 f"weather adjustment for {duration_hours:.1f}h transit at {avg_temp:.1f}°C, {avg_humidity:.0f}% RH via Open-Meteo]{reefer_tip}"
+            )
+            note_hi = (
+                f"यात्रा में खराबी/नुकसान: {adjusted_rate * 100:.1f}% [ICAR-CIPHET मानक {base_rate * 100:.1f}% + "
+                f"{duration_hours:.1f} घंटे सफर व मौसम ({avg_temp:.1f}°C तापमान, {avg_humidity:.0f}% नमी — Open-Meteo) के आधार पर]{reefer_tip_hi}"
             )
         else:
             # Grains / Non-perishable have minimal distance degradation
@@ -863,6 +1139,9 @@ class DynamicVariableResolver:
             note = (
                 f"Transit Wastage: {adjusted_rate * 100:.1f}% [ICAR-CIPHET post-harvest loss norm for {commodity.title()}]"
             )
+            note_hi = (
+                f"यात्रा में नुकसान: {adjusted_rate * 100:.1f}% [{_crop_to_hi(commodity)} के लिए ICAR-CIPHET कटाई-उपरांत मानक]"
+            )
 
         return DynamicWastageResult(
             wastage_rate=adjusted_rate,
@@ -870,5 +1149,606 @@ class DynamicVariableResolver:
             ambient_humidity_pct=avg_humidity,
             is_perishable=is_perishable,
             provenance_note=note,
+            provenance_note_hi=note_hi,
+        )
+
+
+# ===========================================================================
+# V6: Government Subsidies & Cost-Reduction Schemes
+# ===========================================================================
+# Data Sources & Provenance:
+#   1. MoFPI Operation Greens (TOP to TOTAL) — Official Guidelines & PIB releases
+#      URL: https://mofpi.gov.in/schemes/operation-greens
+#      Legal basis: MoFPI Operational Guidelines under PM Kisan SAMPADA Yojana
+#   2. Kisan Rail — 50% freight concession for notified perishables
+#      URL: https://vikaspedia.in/agriculture/market-information/kisan-rail
+#      Legal basis: MoFPI Operation Greens + Indian Railways notification
+#   3. PM-AASHA (PDPS) — Price Deficiency Payment Scheme for oilseeds/pulses
+#      URL: https://agriwelfare.gov.in & https://pib.gov.in CCEA approvals
+#      Legal basis: DA&FW PM-AASHA Operational Scheme Guidelines
+#   4. MSP Rates — CACP/CCEA approved rates from desagri.gov.in
+#      Kharif 2025-26 & Rabi 2025-26 (Marketing Season)
+#   5. State APMC FPO Exemptions — State APMC Amendment Acts & DMI Gazette
+#      URL: https://dmi.gov.in & respective State SAMB portals
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# 5a. CACP/CCEA Minimum Support Prices (₹ per quintal) — 2024-25 / 2025-26
+# ---------------------------------------------------------------------------
+# Source: Directorate of Economics & Statistics (desagri.gov.in)
+#         Press Information Bureau (pib.gov.in) CCEA approval notifications
+
+_GOVT_SUBSIDIES_INDEX_FILE = (
+    Path(__file__).parent.parent / "data" / "raw" / "govt_subsidies_index.json"
+)
+
+
+def _load_govt_subsidies_index() -> Dict[str, Any]:
+    """Load structured government subsidy schedules from JSON dataset (like PPAC)."""
+    if _GOVT_SUBSIDIES_INDEX_FILE.exists():
+        try:
+            with open(_GOVT_SUBSIDIES_INDEX_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            logger.info(
+                "Loaded statutory subsidy dataset from %s (version=%s)",
+                _GOVT_SUBSIDIES_INDEX_FILE.name,
+                data.get("metadata", {}).get("version", "unknown"),
+            )
+            return data
+        except Exception as e:
+            logger.warning("Could not load govt subsidies index file: %s", e)
+    return {}
+
+
+GOVT_MSP_BENCHMARKS: Dict[str, Dict[str, Any]] = {
+    # ── Kharif Crops (KMS 2025-26) ──
+    "paddy": {
+        "msp": 2369.0, "grade_a_msp": 2389.0, "season": "Kharif",
+        "category": "cereal", "intervention_type": "MSP_PROCUREMENT",
+        "citation": "CCEA KMS 2025-26 (desagri.gov.in)",
+    },
+    "rice": {
+        "msp": 2369.0, "grade_a_msp": 2389.0, "season": "Kharif",
+        "category": "cereal", "intervention_type": "MSP_PROCUREMENT",
+        "citation": "CCEA KMS 2025-26 (desagri.gov.in)",
+    },
+    "maize": {
+        "msp": 2225.0, "season": "Kharif",
+        "category": "cereal", "intervention_type": "MSP_PROCUREMENT",
+        "citation": "CCEA KMS 2024-25 (desagri.gov.in)",
+    },
+    "soybean": {
+        "msp": 5328.0, "season": "Kharif",
+        "category": "oilseed", "intervention_type": "PDPS",
+        "citation": "CCEA KMS 2025-26 Yellow Soybean (pib.gov.in)",
+    },
+    "soyabean": {
+        "msp": 5328.0, "season": "Kharif",
+        "category": "oilseed", "intervention_type": "PDPS",
+        "citation": "CCEA KMS 2025-26 Yellow Soybean (pib.gov.in)",
+    },
+    "cotton": {
+        "msp": 7710.0, "long_staple_msp": 8110.0, "season": "Kharif",
+        "category": "fiber", "intervention_type": "MSP_PROCUREMENT",
+        "citation": "CCEA KMS 2025-26 Medium Staple (pib.gov.in)",
+    },
+    # ── Rabi Crops (RMS 2025-26) ──
+    "wheat": {
+        "msp": 2425.0, "season": "Rabi",
+        "category": "cereal", "intervention_type": "MSP_PROCUREMENT",
+        "citation": "CCEA RMS 2025-26 (desagri.gov.in)",
+    },
+    "gram": {
+        "msp": 5650.0, "season": "Rabi",
+        "category": "pulse", "intervention_type": "PSS",
+        "citation": "CCEA RMS 2025-26 Chana (desagri.gov.in)",
+    },
+    "mustard": {
+        "msp": 6200.0, "season": "Rabi",
+        "category": "oilseed", "intervention_type": "PDPS",
+        "citation": "CCEA RMS 2025-26 Rapeseed & Mustard (desagri.gov.in)",
+    },
+    # ── Kharif Pulses (KMS 2024-25) ──
+    "tur": {
+        "msp": 7550.0, "season": "Kharif",
+        "category": "pulse", "intervention_type": "PSS",
+        "citation": "CCEA KMS 2024-25 (pib.gov.in)",
+    },
+    "arhar": {
+        "msp": 7550.0, "season": "Kharif",
+        "category": "pulse", "intervention_type": "PSS",
+        "citation": "CCEA KMS 2024-25 (pib.gov.in)",
+    },
+    "moong": {
+        "msp": 8682.0, "season": "Kharif",
+        "category": "pulse", "intervention_type": "PSS",
+        "citation": "CCEA KMS 2024-25 (pib.gov.in)",
+    },
+    "urad": {
+        "msp": 7400.0, "season": "Kharif",
+        "category": "pulse", "intervention_type": "PSS",
+        "citation": "CCEA KMS 2024-25 (pib.gov.in)",
+    },
+    # ── Kharif Oilseeds (KMS 2024-25) ──
+    "groundnut": {
+        "msp": 6783.0, "season": "Kharif",
+        "category": "oilseed", "intervention_type": "PDPS",
+        "citation": "CCEA KMS 2024-25 (pib.gov.in)",
+    },
+    "sunflower": {
+        "msp": 7280.0, "season": "Kharif",
+        "category": "oilseed", "intervention_type": "PDPS",
+        "citation": "CCEA KMS 2024-25 (pib.gov.in)",
+    },
+    "sesamum": {
+        "msp": 9267.0, "season": "Kharif",
+        "category": "oilseed", "intervention_type": "PDPS",
+        "citation": "CCEA KMS 2024-25 (pib.gov.in)",
+    },
+    "nigerseed": {
+        "msp": 8717.0, "season": "Kharif",
+        "category": "oilseed", "intervention_type": "PDPS",
+        "citation": "CCEA KMS 2024-25 (pib.gov.in)",
+    },
+}
+
+# ---------------------------------------------------------------------------
+# 5b. MoFPI Operation Greens — Notified Eligible Crops (22 TOTAL Perishables)
+# ---------------------------------------------------------------------------
+# Source: PIB press release on Operation Greens TOTAL expansion
+#         MoFPI Operational Guidelines for TOP to TOTAL
+
+OPERATION_GREENS_CROPS: set = {
+    # Fruits (10 categories)
+    "mango", "banana", "apple", "pineapple", "orange", "citrus",
+    "kinnow", "mosambi", "lime", "lemon", "grapes", "aonla", "amla",
+    "pomegranate", "guava", "litchi", "kiwi", "papaya", "jackfruit",
+    # Vegetables (11+ categories)
+    "tomato", "onion", "potato", "green peas", "carrot", "cauliflower",
+    "beans", "french beans", "cabbage", "capsicum",
+    "bottle gourd", "bitter gourd", "ridge gourd", "sponge gourd",
+    "pointed gourd", "ash gourd",
+    "okra", "bhindi", "garlic", "ginger",
+    "green chillies", "chilli", "cucumber", "turmeric",
+}
+
+OPERATION_GREENS_CONFIG: Dict[str, Any] = {
+    "freight_subsidy_pct": 0.50,          # 50% of transport cost
+    "storage_subsidy_pct": 0.50,          # 50% of cold storage rental
+    "road_min_distance_km": 100.0,        # Individual farmer / FPO road minimum
+    "federation_min_distance_km": 250.0,  # State federation / retailer minimum
+    "kisan_rail_corridor_min_km": 250.0,  # Long-haul rail corridor benchmark
+    "road_min_qty_farmer_qtl": 90.0,      # 9 MT = 90 qtl for individual road claims
+    "road_min_qty_fpo_qtl": 1000.0,       # 100 MT = 1000 qtl for FPO road claims
+    "kisan_rail_min_qty_qtl": 0.0,        # No quantity floor for Kisan Rail
+    "citation": (
+        "MoFPI Operation Greens (TOP to TOTAL) Operational Guidelines "
+        "under PM Kisan SAMPADA Yojana & Kisan Rail Convergence (mofpi.gov.in / pib.gov.in)"
+    ),
+}
+
+# ---------------------------------------------------------------------------
+# 5c. State APMC FPO / Direct Marketing Fee Exemption Rules
+# ---------------------------------------------------------------------------
+# Source: State APMC Amendment Acts, DMI (dmi.gov.in), State SAMB portals
+# Note: Distinguishes inside-APMC exemptions (e.g. Karnataka F&V) from
+#       outside-APMC / FPO direct-marketing waivers (e.g. Maharashtra 2016 Ord.).
+
+STATE_FPO_EXEMPTIONS: Dict[str, Dict[str, Any]] = {
+    "maharashtra": {
+        "fpo_mandi_fee_waiver_pct": 1.00,
+        "direct_marketing_allowed": True,
+        "fruits_veg_exempt_inside_apmc": False,
+        "fruits_veg_delisted_outside_apmc": True,
+        "citation": "Maharashtra APMC (Amendment) Ordinance 2016 & MSAMB Direct Marketing / Shetkari Bazar Rules (dmi.gov.in)",
+    },
+    "karnataka": {
+        "fpo_mandi_fee_waiver_pct": 1.00,
+        "direct_marketing_allowed": True,
+        "fruits_veg_exempt_inside_apmc": True,
+        "fruits_veg_delisted_outside_apmc": True,
+        "citation": "Karnataka APMC Amendment Act & KSAMB Horticulture Market Fee Exemption (dmi.gov.in)",
+    },
+    "bihar": {
+        "fpo_mandi_fee_waiver_pct": 1.00,
+        "direct_marketing_allowed": True,
+        "fruits_veg_exempt_inside_apmc": True,
+        "fruits_veg_delisted_outside_apmc": True,
+        "citation": "Bihar Agriculture Produce Market (Repealing) Act 2006 (0% APMC fee statewide)",
+    },
+    "kerala": {
+        "fpo_mandi_fee_waiver_pct": 1.00,
+        "direct_marketing_allowed": True,
+        "fruits_veg_exempt_inside_apmc": True,
+        "fruits_veg_delisted_outside_apmc": True,
+        "citation": "Kerala Non-APMC Cooperative Marketing Framework (VFPCK / Horticorp)",
+    },
+    "uttar pradesh": {
+        "fpo_mandi_fee_waiver_pct": 1.00,
+        "direct_marketing_allowed": True,
+        "fruits_veg_exempt_inside_apmc": False,
+        "fruits_veg_delisted_outside_apmc": False,
+        "citation": "UP Krishi Utpadan Mandi Parishad — FPO / Kisan Bazaar Direct Purchase Rules",
+    },
+    "madhya pradesh": {
+        "fpo_mandi_fee_waiver_pct": 0.50,
+        "direct_marketing_allowed": True,
+        "fruits_veg_exempt_inside_apmc": False,
+        "fruits_veg_delisted_outside_apmc": False,
+        "citation": "MP Krishi Upaj Mandi Adhiniyam — FPO Direct Procurement Concession",
+    },
+    "rajasthan": {
+        "fpo_mandi_fee_waiver_pct": 1.00,
+        "direct_marketing_allowed": True,
+        "fruits_veg_exempt_inside_apmc": False,
+        "fruits_veg_delisted_outside_apmc": False,
+        "citation": "Rajasthan APMC Amendment Act — Direct Purchase & FPO Exemption",
+    },
+    "gujarat": {
+        "fpo_mandi_fee_waiver_pct": 1.00,
+        "direct_marketing_allowed": True,
+        "fruits_veg_exempt_inside_apmc": False,
+        "fruits_veg_delisted_outside_apmc": False,
+        "citation": "Gujarat APMC (Amendment) Rules — GAPMC Direct Marketing License",
+    },
+    "punjab": {
+        "fpo_mandi_fee_waiver_pct": 0.00,
+        "direct_marketing_allowed": False,
+        "fruits_veg_exempt_inside_apmc": False,
+        "fruits_veg_delisted_outside_apmc": False,
+        "citation": "Punjab APMC Act & PSAMB — Full Market Fee + RDF Applicable",
+    },
+    "haryana": {
+        "fpo_mandi_fee_waiver_pct": 0.00,
+        "direct_marketing_allowed": False,
+        "fruits_veg_exempt_inside_apmc": False,
+        "fruits_veg_delisted_outside_apmc": False,
+        "citation": "Haryana APMC Act & HRDF — Full Market Fee + HRDF Applicable",
+    },
+    "tamil nadu": {
+        "fpo_mandi_fee_waiver_pct": 1.00,
+        "direct_marketing_allowed": True,
+        "fruits_veg_exempt_inside_apmc": False,
+        "fruits_veg_delisted_outside_apmc": False,
+        "citation": "Tamil Nadu APMC Amendment — TNAMB Direct Marketing License",
+    },
+    "andhra pradesh": {
+        "fpo_mandi_fee_waiver_pct": 1.00,
+        "direct_marketing_allowed": True,
+        "fruits_veg_exempt_inside_apmc": False,
+        "fruits_veg_delisted_outside_apmc": False,
+        "citation": "AP (Agricultural Produce & Livestock) Markets Amendment Act",
+    },
+    "telangana": {
+        "fpo_mandi_fee_waiver_pct": 1.00,
+        "direct_marketing_allowed": True,
+        "fruits_veg_exempt_inside_apmc": False,
+        "fruits_veg_delisted_outside_apmc": False,
+        "citation": "Telangana APMC Amendment Act — TGAMB Direct Marketing Rules",
+    },
+    "delhi": {
+        "fpo_mandi_fee_waiver_pct": 0.00,
+        "direct_marketing_allowed": False,
+        "fruits_veg_exempt_inside_apmc": False,
+        "fruits_veg_delisted_outside_apmc": False,
+        "citation": "Delhi DAMB (Azadpur APMC) Fee Schedule — Standard 1% Fee + 1% Cess",
+    },
+    "default": {
+        "fpo_mandi_fee_waiver_pct": 0.00,
+        "direct_marketing_allowed": False,
+        "fruits_veg_exempt_inside_apmc": False,
+        "fruits_veg_delisted_outside_apmc": False,
+        "citation": "Model APMC Act (Conservative Benchmark — No Exemption Assumed)",
+    },
+}
+
+
+# ---------------------------------------------------------------------------
+# Government Subsidy Resolver
+# ---------------------------------------------------------------------------
+
+class GovernmentSubsidyResolver:
+    """
+    Evaluates farmer eligibility for statutory cost-offsetting government
+    schemes loaded from `topo_rag/data/raw/govt_subsidies_index.json`
+    (with curated statutory fallbacks):
+
+    Scheme 1 — MoFPI Operation Greens (TOP→TOTAL) & Kisan Rail:
+        50% freight subsidy on notified perishable produce:
+          • Road transport: ≥ 100 km and ≥ 9 MT (90 qtl) lot threshold.
+          • Kisan Rail convergence: zero minimum quantity cap on long-haul
+            interstate corridors (≥ 250 km or explicit Kisan Rail mode).
+
+    Scheme 2 — State APMC FPO / Direct-Marketing / Horticulture Waivers:
+        Up to 100% waiver of APMC market fee + cess via FPO/direct marketing
+        or statutory horticulture exemptions (e.g., Karnataka F&V inside APMC).
+
+    Scheme 3 — PM-AASHA PDPS (Oilseeds) & PSS/MSP Floor Advisory:
+        • Oilseeds (PDPS): Direct DBT payment of (MSP − Modal Price), capped
+          at 15% of MSP per quintal (Union Cabinet Sept 2024 revamp).
+        • Pulses/Cereals/Cotton (PSS / MSP Procurement): Flags exact MSP gap
+          advisory directing farmers to NAFED/NCCF/FCI/CCI procurement centers.
+    """
+
+    def __init__(self):
+        index_data = _load_govt_subsidies_index()
+
+        op_greens = index_data.get("operation_greens", {})
+        self.op_greens_config: Dict[str, Any] = {
+            **OPERATION_GREENS_CONFIG,
+            **{k: v for k, v in op_greens.items() if k != "eligible_crops"},
+        }
+        crops_list = op_greens.get("eligible_crops")
+        self.op_greens_crops: set = (
+            {str(c).strip().lower() for c in crops_list}
+            if crops_list else set(OPERATION_GREENS_CROPS)
+        )
+
+        pm_aasha = index_data.get("pm_aasha_msp", {})
+        self.pdps_cap_pct: float = float(pm_aasha.get("pdps_max_cap_pct", 0.15))
+        msp_crops = pm_aasha.get("crops")
+        self.msp_benchmarks: Dict[str, Dict[str, Any]] = (
+            {k.strip().lower(): v for k, v in msp_crops.items()}
+            if msp_crops else dict(GOVT_MSP_BENCHMARKS)
+        )
+
+        fpo_rules = index_data.get("state_fpo_exemptions")
+        self.state_fpo_exemptions: Dict[str, Dict[str, Any]] = (
+            {k.strip().lower(): v for k, v in fpo_rules.items()}
+            if fpo_rules else dict(STATE_FPO_EXEMPTIONS)
+        )
+
+    def _match_state_fpo_rule(self, destination_state: str) -> Dict[str, Any]:
+        clean_state = destination_state.strip().lower()
+        if clean_state in self.state_fpo_exemptions:
+            return self.state_fpo_exemptions[clean_state]
+        for s_key, s_rule in self.state_fpo_exemptions.items():
+            if s_key != "default" and (s_key in clean_state or clean_state in s_key):
+                return s_rule
+        return self.state_fpo_exemptions.get("default", STATE_FPO_EXEMPTIONS["default"])
+
+    def resolve_subsidies(
+        self,
+        commodity: str,
+        quantity_quintals: float,
+        distance_km: float,
+        modal_price: float,
+        gross_transport_cost: float,
+        gross_apmc_tax: float,
+        destination_state: str = "default",
+        is_fpo_member: bool = False,
+        transport_mode: str = "auto",
+    ) -> DynamicSubsidyResult:
+        """
+        Compute applicable government subsidy benefits for a single transaction.
+
+        Parameters
+        ----------
+        commodity : str
+            Crop name (e.g. "Tomato", "Soybean", "Wheat").
+        quantity_quintals : float
+            Total quantity being transported (in quintals).
+        distance_km : float
+            Road driving distance from source to destination mandi (km).
+        modal_price : float
+            Effective mandi modal price (₹ per quintal) from V1 (+ grade adj).
+        gross_transport_cost : float
+            Gross transport freight (₹) before any subsidy (V2 × V4).
+        gross_apmc_tax : float
+            Gross APMC commission + cess (₹) before any waiver (V3).
+        destination_state : str
+            Destination state for FPO/APMC waiver lookup.
+        is_fpo_member : bool
+            Whether the farmer sells via a registered FPO / direct-marketing channel.
+        transport_mode : str
+            "auto" (Kisan Rail convergence for >=250km small lots; Road for >=9 MT),
+            "kisan_rail" (50% rail freight regardless of qty), or
+            "road" (strictly enforces 9 MT / 90 qtl road threshold).
+        """
+        c_clean = commodity.strip().lower()
+        mode_clean = (transport_mode or "auto").strip().lower()
+
+        transport_sub = 0.0
+        tax_waiver = 0.0
+        price_support = 0.0
+        msp_benchmark = 0.0
+        msp_advisory = ""
+        msp_advisory_hi = ""
+        channel_notes: list = []
+        channel_notes_hi: list = []
+        applied_schemes: list = []
+        applied_schemes_hi: list = []
+        citations: list = []
+
+        # ── Scheme 1: MoFPI Operation Greens (TOP→TOTAL) / Kisan Rail ───────
+        if c_clean in self.op_greens_crops and gross_transport_cost > 0:
+            sub_pct = float(self.op_greens_config.get("freight_subsidy_pct", 0.50))
+            road_min_km = float(self.op_greens_config.get("road_min_distance_km", 100.0))
+            road_min_qtl = float(self.op_greens_config.get("road_min_qty_farmer_qtl", 90.0))
+            rail_min_km = float(self.op_greens_config.get("kisan_rail_corridor_min_km", 250.0))
+            op_citation = self.op_greens_config.get("citation", OPERATION_GREENS_CONFIG["citation"])
+
+            if mode_clean == "kisan_rail":
+                transport_sub = round(gross_transport_cost * sub_pct, 2)
+                applied_schemes.append(
+                    "MoFPI Operation Greens via Kisan Rail (50% Freight Concession — zero min qty)"
+                )
+                applied_schemes_hi.append(
+                    "MoFPI ऑपरेशन ग्रीन्स / किसान रेल (50% भाड़ा सब्सिडी — न्यूनतम मात्रा सीमा नहीं)"
+                )
+                citations.append(op_citation)
+                channel_notes.append("Kisan Rail 50% upfront freight subsidy active")
+                channel_notes_hi.append("किसान रेल पर 50% भाड़ा छूट सक्रिय")
+            elif quantity_quintals >= road_min_qtl and distance_km >= road_min_km:
+                transport_sub = round(gross_transport_cost * sub_pct, 2)
+                applied_schemes.append(
+                    f"MoFPI Operation Greens TOTAL Road Subsidy "
+                    f"(50% Freight Concession, {quantity_quintals:.1f} qtl ≥ 90 qtl & {distance_km:.0f} km ≥ {road_min_km:.0f} km)"
+                )
+                applied_schemes_hi.append(
+                    f"MoFPI ऑपरेशन ग्रीन्स सड़क सब्सिडी (50% भाड़ा छूट, {quantity_quintals:.1f} क्विंटल ≥ 90 क्विंटल व {distance_km:.0f} किमी दूरी)"
+                )
+                citations.append(op_citation)
+                channel_notes.append("Qualifies for standard MoFPI road claim (≥9 MT)")
+                channel_notes_hi.append("मानक MoFPI सड़क सब्सिडी के लिए पात्र (≥9 टन)")
+            elif mode_clean == "auto" and distance_km >= rail_min_km:
+                transport_sub = round(gross_transport_cost * sub_pct, 2)
+                applied_schemes.append(
+                    f"MoFPI Operation Greens / Kisan Rail Convergence "
+                    f"(50% Freight Concession, {distance_km:.0f} km corridor; no min qty on Kisan Rail)"
+                )
+                applied_schemes_hi.append(
+                    f"MoFPI ऑपरेशन ग्रीन्स / किसान रेल योजना (50% भाड़ा राहत, {distance_km:.0f} किमी मार्ग; किसान रेल पर न्यूनतम मात्रा सीमा नहीं)"
+                )
+                citations.append(op_citation)
+                channel_notes.append(
+                    "Small lot (<9 MT) routed under Kisan Rail 50% freight convergence"
+                )
+                channel_notes_hi.append(
+                    "कम मात्रा (<9 टन) के लिए किसान रेल 50% भाड़ा राहत योजना लागू"
+                )
+            elif distance_km >= road_min_km:
+                potential = round(gross_transport_cost * sub_pct, 2)
+                channel_notes.append(
+                    f"OpGreens Tip: Lot {quantity_quintals:.1f} qtl is below 90 qtl (9 MT) road minimum; "
+                    f"booking via Kisan Rail or pooling to ≥9 MT saves ₹{potential:,.2f} (50% freight)"
+                )
+                channel_notes_hi.append(
+                    f"ऑपरेशन ग्रीन्स सुझाव: {quantity_quintals:.1f} क्विंटल मात्रा 90 क्विंटल (9 टन) सड़क सीमा से कम है; "
+                    f"किसान रेल या समूह बुकिंग (≥9 टन) से ₹{potential:,.2f} (50% भाड़ा) बचाया जा सकता है"
+                )
+
+        # ── Scheme 2: State APMC FPO / Direct Marketing / Horticulture Waiver ─
+        fpo_rule = self._match_state_fpo_rule(destination_state)
+        is_fv = c_clean in self.op_greens_crops
+
+        if gross_apmc_tax > 0:
+            if is_fpo_member and fpo_rule.get("fpo_mandi_fee_waiver_pct", 0.0) > 0:
+                waiver_pct = float(fpo_rule["fpo_mandi_fee_waiver_pct"])
+                tax_waiver = round(gross_apmc_tax * waiver_pct, 2)
+                applied_schemes.append(
+                    f"State APMC FPO Direct-Marketing Waiver "
+                    f"({waiver_pct * 100:.0f}% of ₹{gross_apmc_tax:,.2f})"
+                )
+                applied_schemes_hi.append(
+                    f"राज्य APMC एफपीओ (FPO) प्रत्यक्ष बिक्री शुल्क छूट ({waiver_pct * 100:.0f}% छूट)"
+                )
+                citations.append(fpo_rule["citation"])
+            elif not is_fpo_member and fpo_rule.get("fruits_veg_exempt_inside_apmc") and is_fv:
+                tax_waiver = round(gross_apmc_tax, 2)
+                applied_schemes.append(
+                    "State Horticulture APMC Market Fee Exemption (100% F&V waiver inside mandi)"
+                )
+                applied_schemes_hi.append(
+                    "राज्य बागवानी मंडी शुल्क छूट (फल-सब्जी पर मंडी में 100% छूट)"
+                )
+                citations.append(fpo_rule["citation"])
+            elif not is_fpo_member and fpo_rule.get("fruits_veg_delisted_outside_apmc") and is_fv:
+                channel_notes.append(
+                    f"APMC Reform Tip: Selling F&V via FPO or outside APMC yard waives ₹{gross_apmc_tax:,.2f} fee ({fpo_rule['citation']})"
+                )
+                channel_notes_hi.append(
+                    f"मंडी सुधार सुझाव: FPO या मंडी यार्ड के बाहर सीधी बिक्री से ₹{gross_apmc_tax:,.2f} मंडी शुल्क बच सकता है"
+                )
+        elif fpo_rule.get("fruits_veg_exempt_inside_apmc"):
+            channel_notes.append(f"Zero-APMC state already active ({fpo_rule['citation']})")
+            channel_notes_hi.append(f"शून्य-मंडी शुल्क राज्य लागू ({_state_to_hi(destination_state)})")
+
+        # ── Scheme 3: PM-AASHA PDPS (Oilseeds DBT) & PSS / MSP Floor ────────
+        msp_entry = self.msp_benchmarks.get(c_clean)
+        if msp_entry:
+            msp_val = float(msp_entry["msp"])
+            msp_benchmark = msp_val
+            intervention = msp_entry.get("intervention_type", "MSP_PROCUREMENT")
+            season = msp_entry.get("season", "")
+            season_hi = "खरीफ" if season.lower() == "kharif" else ("रबी" if season.lower() == "rabi" else season)
+
+            if modal_price < msp_val:
+                raw_gap = msp_val - modal_price
+                if intervention == "PDPS":
+                    capped_gap = min(raw_gap, self.pdps_cap_pct * msp_val)
+                    if capped_gap > 0 and quantity_quintals > 0:
+                        price_support = round(capped_gap * quantity_quintals, 2)
+                        applied_schemes.append(
+                            f"PM-AASHA PDPS (₹{capped_gap:,.2f}/qtl DBT vs MSP ₹{msp_val:,.0f}/qtl "
+                            f"[{season}], {self.pdps_cap_pct * 100:.0f}% cap)"
+                        )
+                        applied_schemes_hi.append(
+                            f"PM-AASHA भावांतर योजना (PDPS: {season_hi} MSP ₹{msp_val:,.0f}/क्विंटल पर ₹{capped_gap:,.2f}/क्विंटल सहायता, {self.pdps_cap_pct * 100:.0f}% सीमा)"
+                        )
+                        citations.append(
+                            f"DA&FW PM-AASHA PDPS Guidelines & {msp_entry['citation']}"
+                        )
+                else:
+                    agency = "NAFED/NCCF (PM-AASHA PSS)" if intervention == "PSS" else "FCI/CCI/State Agency"
+                    agency_hi = "NAFED/NCCF (PM-AASHA PSS)" if intervention == "PSS" else "FCI/CCI या सरकारी खरीद केंद्र"
+                    potential_gain = round(raw_gap * quantity_quintals, 2)
+                    msp_advisory = (
+                        f"MSP Procurement Alert: Mandi price ₹{modal_price:,.2f}/qtl is ₹{raw_gap:,.2f}/qtl "
+                        f"below MSP ₹{msp_val:,.0f}/qtl ({msp_entry['citation']}). "
+                        f"Selling at {agency} MSP center yields +₹{potential_gain:,.2f} vs open mandi."
+                    )
+                    msp_advisory_hi = (
+                        f"MSP खरीद चेतावनी: मंडी भाव ₹{modal_price:,.2f}/क्विंटल, सरकारी MSP ₹{msp_val:,.0f}/क्विंटल से ₹{raw_gap:,.2f}/क्विंटल कम है — "
+                        f"{agency_hi} पर बेचने से +₹{potential_gain:,.2f} अतिरिक्त लाभ मिल सकता है।"
+                    )
+                    channel_notes.append(msp_advisory)
+                    channel_notes_hi.append(msp_advisory_hi)
+
+        # ── Aggregate ───────────────────────────────────────────────────────
+        total_benefit = round(transport_sub + tax_waiver + price_support, 2)
+        is_eligible = total_benefit > 0
+
+        if is_eligible:
+            parts = []
+            parts_hi = []
+            if transport_sub > 0:
+                parts.append(f"Freight Relief ₹{transport_sub:,.2f}")
+                parts_hi.append(f"भाड़ा राहत ₹{transport_sub:,.2f}")
+            if tax_waiver > 0:
+                parts.append(f"Mandi Fee Waiver ₹{tax_waiver:,.2f}")
+                parts_hi.append(f"मंडी शुल्क छूट ₹{tax_waiver:,.2f}")
+            if price_support > 0:
+                parts.append(f"Price Support ₹{price_support:,.2f}")
+                parts_hi.append(f"मूल्य सहायता ₹{price_support:,.2f}")
+
+            note = (
+                f"Government Subsidy: ₹{total_benefit:,.2f} total "
+                f"({' + '.join(parts)}) via {'; '.join(applied_schemes)} "
+                f"[{'; '.join(citations)}]"
+            )
+            note_hi = (
+                f"सरकारी सब्सिडी लाभ: कुल ₹{total_benefit:,.2f} "
+                f"({' + '.join(parts_hi)}) — {'; '.join(applied_schemes_hi)}"
+            )
+        else:
+            extra = f" | {'; '.join(channel_notes)}" if channel_notes else ""
+            extra_hi = f" | {'; '.join(channel_notes_hi)}" if channel_notes_hi else ""
+            note = (
+                "Government Subsidy: ₹0.00 "
+                "(no direct DBT/freight offset triggered for this route/crop)"
+                f"{extra}"
+            )
+            note_hi = (
+                "सरकारी सब्सिडी: ₹0.00 "
+                "(इस फसल/मार्ग पर कोई प्रत्यक्ष सब्सिडी लागू नहीं)"
+                f"{extra_hi}"
+            )
+
+        return DynamicSubsidyResult(
+            scheme_name=" + ".join(applied_schemes) if applied_schemes else "None Applicable",
+            transport_subsidy_amount=transport_sub,
+            mandi_fee_waiver_amount=tax_waiver,
+            price_support_amount=price_support,
+            total_subsidy_benefit=total_benefit,
+            is_eligible=is_eligible,
+            citation="; ".join(citations) if citations else "N/A",
+            provenance_note=note,
+            msp_benchmark_per_qtl=msp_benchmark,
+            msp_advisory_note=msp_advisory,
+            channel_details="; ".join(channel_notes),
+            provenance_note_hi=note_hi,
+            msp_advisory_note_hi=msp_advisory_hi,
+            channel_details_hi="; ".join(channel_notes_hi),
         )
 

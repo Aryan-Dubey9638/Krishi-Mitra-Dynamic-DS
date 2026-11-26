@@ -60,6 +60,27 @@ _TIMEOUT: int = int(os.getenv("OLLAMA_TIMEOUT", "45"))
 
 
 # ---------------------------------------------------------------------------
+# Language & Intent Detection Helpers (Hindi Devanagari)
+# ---------------------------------------------------------------------------
+
+def _is_devanagari(text: str) -> bool:
+    """Check if the text contains Devanagari script characters."""
+    return bool(re.search(r'[\u0900-\u097F]', text))
+
+
+def _is_hindi_translation_request(text: str) -> bool:
+    """Check if the user is asking to translate into Hindi."""
+    patterns = [
+        r"translate\s+(?:it\s+)?(?:in|to|into)?\s*hindi",
+        r"hindi\s*me(?:i?n)?\s*(?:batao|karo|bhejo|translate|likho|samjhao)",
+        r"\bin\s+hindi\b",
+        r"\binto\s+hindi\b",
+        r"हिंदी\s*में\s*(?:अनुवाद|बताएं|बताओ|करो|लिखो|दीजिये|समझाओ)",
+    ]
+    return any(re.search(p, text.strip(), re.I) for p in patterns)
+
+
+# ---------------------------------------------------------------------------
 # Context cleaning  (identical logic to the original)
 # ---------------------------------------------------------------------------
 
@@ -115,7 +136,7 @@ def _ollama_chat(
     base_url:    str,
     model:       str,
     messages:    List[dict],
-    max_tokens:  int = 280,
+    max_tokens:  int = 420,
     temperature: float = 0.3,
 ) -> str:
     """
@@ -133,7 +154,7 @@ def _ollama_chat(
         "options": {
             "temperature":    temperature,
             "num_predict":    max_tokens,
-            "num_ctx":        2048,
+            "num_ctx":        4096,
             "repeat_penalty": 1.15,
         },
     }).encode("utf-8")
@@ -154,7 +175,7 @@ def _ollama_chat_stream(
     base_url:    str,
     model:       str,
     messages:    List[dict],
-    max_tokens:  int = 280,
+    max_tokens:  int = 420,
     temperature: float = 0.3,
 ):
     """
@@ -172,7 +193,7 @@ def _ollama_chat_stream(
         "options": {
             "temperature":    temperature,
             "num_predict":    max_tokens,
-            "num_ctx":        2048,
+            "num_ctx":        4096,
             "repeat_penalty": 1.15,
         },
     }).encode("utf-8")
@@ -230,6 +251,9 @@ class OllamaSynthesizer:
         self._base_url   = base_url or _OLLAMA_BASE_URL
         self._available  = False
         self._history:   List[dict] = []
+        self._last_profit = None
+        self._last_advisory: str = ""
+        self._last_calc_block: str = ""
 
         # Resolve which model to actually use
         preferred = model_name or _DEFAULT_MODEL
@@ -272,6 +296,9 @@ class OllamaSynthesizer:
     def reset_chat(self) -> None:
         """Clear multi-turn conversation history (call on new user session)."""
         self._history = []
+        self._last_profit = None
+        self._last_advisory = ""
+        self._last_calc_block = ""
         logger.info("OllamaSynthesizer: chat history cleared")
 
     def generate(
@@ -288,13 +315,29 @@ class OllamaSynthesizer:
         Returns the full response as a single string (non-streaming).
         Use generate_stream() for token-by-token delivery to the frontend.
         """
-        calc_block = profit.summary() if profit else ""
+        if profit is not None:
+            self._last_profit = profit
+
+        is_hi = _is_devanagari(query)
+        is_trans = _is_hindi_translation_request(query)
+
+        if is_hi:
+            calc_block = profit.summary(lang="hi") if profit else ""
+        elif is_trans:
+            if profit:
+                calc_block = profit.summary(lang="hi")
+            elif self._last_profit:
+                calc_block = self._last_profit.summary(lang="hi")
+            else:
+                calc_block = ""
+        else:
+            calc_block = profit.summary(lang="en") if profit else ""
 
         if not self._available:
             return self._fallback(calc_block, "Ollama not reachable — run 'ollama serve'")
 
         try:
-            return self._local_response(query, context_chunks, calc_block)
+            return self._local_response(query, context_chunks, calc_block, profit=profit)
         except urllib.error.URLError as e:
             logger.error("Ollama connection error: %s", e)
             return self._fallback(calc_block, "Ollama server unreachable")
@@ -318,27 +361,40 @@ class OllamaSynthesizer:
           - First event  : {"type": "calc",    "content": "<full calc block>"}
           - Middle events: {"type": "token",   "content": "<token>"}
           - Final event  : {"type": "done",    "content": ""}
-
-        The frontend accumulates "token" events into the advisory text area,
-        so the user sees words appearing in real-time rather than waiting for
-        the full response.  Total output is identical to generate().
         """
         import json as _json
 
-        calc_block = profit.summary() if profit else ""
+        if profit is not None:
+            self._last_profit = profit
 
-        # Always emit the calc block immediately — it's deterministic and ready
-        # before the LLM even starts.  The user sees numbers in < 200 ms.
+        is_hi = _is_devanagari(query)
+        is_trans = _is_hindi_translation_request(query)
+
+        if is_hi:
+            calc_block = profit.summary(lang="hi") if profit else ""
+        elif is_trans:
+            if profit:
+                calc_block = profit.summary(lang="hi")
+            elif self._last_profit:
+                calc_block = self._last_profit.summary(lang="hi")
+            else:
+                calc_block = ""
+        else:
+            calc_block = profit.summary(lang="en") if profit else ""
+
+        # Always emit the calc block immediately
         yield f"data: {_json.dumps({'type': 'calc', 'content': calc_block})}\n\n"
 
         if not self._available:
-            err_msg = "*(Local AI advisory unavailable: Ollama not reachable — run 'ollama serve'.)*"
-            yield f"data: {_json.dumps({'type': 'token', 'content': err_msg})}\n\n"
+            fallback_msg = self._deterministic_advisory(query, profit or self._last_profit, is_hi or is_trans)
+            yield f"data: {_json.dumps({'type': 'token', 'content': fallback_msg})}\n\n"
             yield f"data: {_json.dumps({'type': 'done',  'content': ''})}\n\n"
             return
 
         try:
-            messages = self._build_messages(query, context_chunks, calc_block)
+            messages, history_user_msg = self._build_messages(
+                query, context_chunks, calc_block, profit=profit
+            )
 
             full_advisory = []
             for token in _ollama_chat_stream(
@@ -349,14 +405,20 @@ class OllamaSynthesizer:
                 full_advisory.append(token)
                 yield f"data: {_json.dumps({'type': 'token', 'content': token})}\n\n"
 
-            # Store the complete advisory in history for multi-turn context
             complete = "".join(full_advisory).strip()
-            self._history.append({"role": "assistant", "content": complete})
+            if not complete:
+                # Guarantee non-empty advisory if local 1.5B model hits stop token immediately
+                complete = self._deterministic_advisory(query, profit or self._last_profit, is_hi or is_trans)
+                yield f"data: {_json.dumps({'type': 'token', 'content': complete})}\n\n"
+
+            self._last_advisory = complete
+            self._last_calc_block = calc_block
+            self._record_history_turn(history_user_msg, complete, is_hi=is_hi or is_trans)
 
         except Exception as e:
             logger.error("OllamaSynthesizer stream error: %s", e)
-            err_msg = f"*(Advisory generation error: {e})*"
-            yield f"data: {_json.dumps({'type': 'token', 'content': err_msg})}\n\n"
+            fallback_msg = self._deterministic_advisory(query, profit or self._last_profit, is_hi or is_trans)
+            yield f"data: {_json.dumps({'type': 'token', 'content': fallback_msg})}\n\n"
 
         yield f"data: {_json.dumps({'type': 'done', 'content': ''})}\n\n"
 
@@ -364,69 +426,257 @@ class OllamaSynthesizer:
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _build_messages(self, query: str, context_chunks: list, calc_block: str) -> List[dict]:
-        """
-        Build the messages list for an Ollama chat request and append the
-        new user turn to the rolling conversation history.
+    @staticmethod
+    def _compact_profit_line(profit, is_hi: bool) -> str:
+        """Compact 1-line profit summary so 1.5B model does not echo huge box-art tables."""
+        if not profit:
+            return ""
+        if is_hi:
+            parts = [
+                f"{profit.commodity} (ग्रेड {profit.grade})",
+                f"{profit.quantity_kg:.0f} किग्रा",
+                f"{profit.source_market} से {profit.destination_market} ({profit.distance_km:.0f} किमी)",
+                f"खराबी {profit.wastage_rate * 100:.1f}%",
+            ]
+            if profit.govt_total_subsidy > 0:
+                parts.append(f"सरकारी सब्सिडी ₹{profit.govt_total_subsidy:,.0f}")
+            parts.append(f"शुद्ध लाभ ₹{profit.net_profit:,.0f}")
+            return ", ".join(parts)
 
-        Shared by both generate() (non-streaming) and generate_stream().
-        """
-        clean_ctx = _clean_context(context_chunks)
+        parts = [
+            f"{profit.commodity} (Grade {profit.grade})",
+            f"{profit.quantity_kg:.0f} kg",
+            f"{profit.source_market} to {profit.destination_market} ({profit.distance_km:.0f} km)",
+            f"wastage {profit.wastage_rate * 100:.1f}%",
+        ]
+        if profit.govt_total_subsidy > 0:
+            parts.append(f"govt subsidy ₹{profit.govt_total_subsidy:,.0f}")
+        parts.append(f"net profit ₹{profit.net_profit:,.0f}")
+        return ", ".join(parts)
 
-        if calc_block:
-            user_msg = (
-                f"The farmer asked: {query}\n\n"
-                f"I have already shown them this profit calculation:\n"
-                f"{calc_block}\n\n"
-                f"Additional market knowledge retrieved from the database:\n{clean_ctx}\n\n"
-                f"Give a short advisory (3-5 sentences). "
-                f"Do NOT repeat any numbers from the calculation block above."
+    @staticmethod
+    def _deterministic_advisory(query: str, profit, is_hi: bool) -> str:
+        """Reliable fallback advisory if Ollama returns empty output or errors."""
+        if not profit:
+            if is_hi:
+                return (
+                    "वर्तमान मंडी जानकारी के आधार पर फसल बेचने से पहले अपने नजदीकी और बड़े मंडी के ताजा भाव की तुलना जरूर करें। "
+                    "मंडी शुल्क, भाड़ा और रास्ते में होने वाले नुकसान को ध्यान में रखकर ही वाहन रवाना करें।"
+                )
+            return (
+                "Compare current modal rates across nearby and destination mandis before dispatching your produce, "
+                "and verify local APMC charges and freight availability with your commission agent."
+            )
+
+        if is_hi:
+            if profit.net_profit <= 0:
+                advice = (
+                    "मौजूदा भाव और परिवहन खर्च के अनुसार इस मंडी में माल भेजना लाभदायक नहीं दिख रहा है। "
+                    "बेहतर होगा कि आप पास की स्थानीय मंडी में भाव पता करें या यदि फसल रखने योग्य है तो कुछ समय इंतजार करें।"
+                )
+            elif profit.distance_km >= 400 and profit.wastage_rate >= 0.05:
+                advice = (
+                    "इस मार्ग पर शुद्ध लाभ सकारात्मक है, इसलिए माल भेजना फायदेमंद रहेगा। "
+                    "दूरी लंबी होने से रास्ते में फसल खराब होने का जोखिम रहता है, इसलिए हवादार प्लास्टिक क्रेट्स में पैक करें और रात में सफर करें।"
+                )
+            else:
+                advice = (
+                    "इस मंडी में बिक्री से आपको अच्छा शुद्ध मुनाफा मिल रहा है, इसलिए सही ग्रेडिंग के साथ माल भेजना फायदेमंद रहेगा। "
+                    "रवानगी से पहले अपने आढ़ती से आज का ताजा भाव जरूर पक्का कर लें।"
+                )
+            if profit.govt_total_subsidy > 0:
+                advice += " सरकारी योजना की सब्सिडी का लाभ लेने के लिए मंडी और परिवहन की पक्की रसीदें व किसान पंजीकरण कागजात सुरक्षित रखें।"
+            return advice
+
+        if profit.net_profit <= 0:
+            advice = (
+                "At current modal prices and logistics costs, shipping on this route is loss-making. "
+                "Check closer regional mandis or hold stock if the crop can be stored safely."
+            )
+        elif profit.distance_km >= 400 and profit.wastage_rate >= 0.05:
+            advice = (
+                "This route yields a positive net profit, making dispatch worthwhile despite transit costs. "
+                "Because perishability increases over long distances, pack in ventilated crates and dispatch during cooler night hours."
             )
         else:
-            user_msg = (
-                f"The farmer asked: {query}\n\n"
-                f"Relevant market knowledge:\n{clean_ctx}\n\n"
-                f"Answer conversationally in 3-5 sentences."
+            advice = (
+                "Transporting this lot yields a positive net margin at current market rates. "
+                "Confirm today's arrival rate with your destination mandi agent before loading."
             )
+        if profit.govt_total_subsidy > 0:
+            advice += " Keep transport receipts and registration documents ready to claim the eligible government scheme subsidy."
+        return advice
 
+    def _record_history_turn(self, user_msg: str, assistant_msg: str, is_hi: bool) -> None:
+        """Append completed turn cleanly without mixing Hindi/English history streams."""
+        lang_tag = "hi" if is_hi else "en"
+        if getattr(self, "_history_lang", lang_tag) != lang_tag:
+            self._history = []
+        self._history_lang = lang_tag
         self._history.append({"role": "user", "content": user_msg})
+        self._history.append({"role": "assistant", "content": assistant_msg})
+        if len(self._history) > 4:
+            self._history = self._history[-4:]
 
-        # Keep history bounded to last 6 turns (3 Q&A pairs)
-        if len(self._history) > 6:
-            self._history = self._history[-6:]
+    def _build_messages(
+        self, query: str, context_chunks: list, calc_block: str, profit=None
+    ) -> tuple:
+        """
+        Build the messages list for an Ollama chat request and return
+        (messages, compact_history_user_msg).
 
-        # For the krishi-mitra Modelfile the system prompt is baked in.
-        # For the raw qwen2.5:1.5b fallback, inject a lightweight system msg.
-        if self._model_name == _FALLBACK_MODEL:
-            return [
+        Note: Does NOT mutate self._history prematurely so interrupted streams
+        never corrupt future turns.
+        """
+        clean_ctx = _clean_context(context_chunks)
+        is_hi = _is_devanagari(query)
+        is_trans = _is_hindi_translation_request(query)
+
+        # ── Case 1: Translation Request (Rule 2) ──────────────────────
+        if is_trans:
+            last_advisory = self._last_advisory or ""
+            if not last_advisory:
+                for turn in reversed(self._history):
+                    if turn.get("role") == "assistant":
+                        last_advisory = turn.get("content", "")
+                        break
+
+            if last_advisory:
+                user_msg = (
+                    f"Translate into simple, natural Hindi (देवनागरी लिपि) in 3-4 sentences:\n"
+                    f"\"{last_advisory}\""
+                )
+            else:
+                user_msg = (
+                    f"Question: {query}\n"
+                    f"Answer in simple, natural Hindi (देवनागरी लिपि) in 3-4 sentences."
+                )
+
+            translation_system = [
                 {
-                    "role":    "system",
+                    "role": "system",
                     "content": (
-                        "You are Krishi Mitra, an expert Indian agricultural market "
-                        "advisor. Give short, practical advice (3-5 sentences). "
-                        "Never repeat numbers already shown in the profit block."
+                        "You are Krishi Mitra (कृषि मित्र), an agricultural market advisor for Indian farmers. "
+                        "Translate accurately into pure, natural Hindi (देवनागरी लिपि) in 3-4 sentences of plain prose. "
+                        "Never output English words or mixed Marathi."
                     ),
-                }
-            ] + self._history
-        return self._history
+                },
+                {
+                    "role": "user",
+                    "content": (
+                        "Translate into simple Hindi:\n"
+                        "\"Azadpur mandi offers higher prices than local mandis. Transporting is profitable, "
+                        "but tomatoes have a 12% wastage risk over 1400 km. Pack them in ventilated crates and confirm rates with your agent before dispatch.\""
+                    ),
+                },
+                {
+                    "role": "assistant",
+                    "content": (
+                        "आजादपुर मंडी में स्थानीय मंडियों की तुलना में टमाटर के बेहतर दाम मिल रहे हैं। "
+                        "भाड़े के बाद भी माल भेजना फायदेमंद रहेगा, लेकिन 1400 किमी के सफर में टमाटर खराब होने का जोखिम रहता है। "
+                        "इसलिए इन्हें हवादार प्लास्टिक क्रेट्स में ही पैक करें और गाड़ी रवाना करने से पहले अपने आढ़ती से आज का भाव जरूर पक्का कर लें।"
+                    ),
+                },
+                {"role": "user", "content": user_msg},
+            ]
+            return translation_system, user_msg
+
+        # ── Case 2: Hindi Devanagari Prompt (Rule 1) ─────────────────
+        elif is_hi:
+            compact_ctx = self._compact_profit_line(profit, is_hi=True)
+            if compact_ctx:
+                user_msg = f"Context: {compact_ctx}\nQuestion: {query}"
+            elif clean_ctx:
+                user_msg = f"Context: {clean_ctx[:400]}\nQuestion: {query}"
+            else:
+                user_msg = f"Question: {query}"
+
+            prior_hist = self._history if getattr(self, "_history_lang", "hi") == "hi" else []
+            hindi_system = [
+                {
+                    "role": "system",
+                    "content": (
+                        "You are Krishi Mitra (कृषि मित्र), an expert Indian agricultural market advisor for Indian farmers. "
+                        "Respond strictly in pure, natural Hindi (देवनागरी लिपि) in 3-4 sentences of plain conversational prose. "
+                        "Never use bullet points, numbered lists, or headings. "
+                        "Never repeat prompt instructions or mix Marathi/English words."
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": "Context: टमाटर (ग्रेड A), 500 किग्रा, पुणे से आजादपुर (1341 किमी), खराबी 11.0%, सरकारी सब्सिडी ₹2,916, शुद्ध लाभ ₹4,761\nQuestion: क्या मुझे अपने 500 किलो टमाटर आजादपुर मंडी भेजने चाहिए?",
+                },
+                {
+                    "role": "assistant",
+                    "content": (
+                        "आजादपुर मंडी में इस समय टमाटर के भाव स्थानीय बाजार से काफी बेहतर मिल रहे हैं और सरकारी भाड़ा सब्सिडी से खर्च भी घट जाता है, इसलिए माल भेजना फायदेमंद रहेगा। "
+                        "चूंकि पुणे से दिल्ली का सफर लंबा है और टमाटर जल्दी खराब होते हैं, इसलिए हवादार प्लास्टिक क्रेट्स में ही अच्छी तरह पैक करें। "
+                        "माल रवाना करने से पहले आजादपुर में अपने आढ़ती से आज का ताजा भाव पक्का कर लें और सब्सिडी के लिए पक्की रसीदें संभाल कर रखें।"
+                    ),
+                },
+            ]
+            return hindi_system + prior_hist + [{"role": "user", "content": user_msg}], user_msg
+
+        # ── Case 3: Standard English Prompt ──────────────────────────
+        else:
+            compact_ctx = self._compact_profit_line(profit, is_hi=False)
+            if compact_ctx:
+                user_msg = f"Context: {compact_ctx}\nQuestion: {query}"
+            elif clean_ctx:
+                user_msg = f"Context: {clean_ctx[:500]}\nQuestion: {query}"
+            else:
+                user_msg = f"Question: {query}"
+
+            prior_hist = self._history if getattr(self, "_history_lang", "en") == "en" else []
+            english_system = [
+                {
+                    "role": "system",
+                    "content": (
+                        "You are Krishi Mitra, an expert Indian agricultural market advisor. "
+                        "Give short, practical advice in 3-4 sentences of plain prose. "
+                        "Respond in English only. Never use bullet points or headings."
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": "Context: Tomato (Grade A), 500 kg, Pune to Azadpur (1341 km), wastage 11.0%, govt subsidy ₹2,916, net profit ₹4,761\nQuestion: Should I ship these tomatoes to Azadpur?",
+                },
+                {
+                    "role": "assistant",
+                    "content": (
+                        "Shipping to Azadpur is profitable right now because destination rates and the freight subsidy comfortably cover your logistics costs. "
+                        "Since tomatoes perish quickly over a long haul, pack them in ventilated plastic crates and travel at night to reduce heat damage. "
+                        "Confirm today's arrival rate with your mandi agent before dispatch and keep your transport receipts ready for the subsidy claim."
+                    ),
+                },
+            ]
+            return english_system + prior_hist + [{"role": "user", "content": user_msg}], user_msg
 
     def _local_response(
         self,
         query:          str,
         context_chunks: list,
         calc_block:     str,
+        profit=None,
     ) -> str:
         """Build the message list and call Ollama (non-streaming)."""
-        messages = self._build_messages(query, context_chunks, calc_block)
+        is_hi = _is_devanagari(query)
+        is_trans = _is_hindi_translation_request(query)
+        messages, history_user_msg = self._build_messages(
+            query, context_chunks, calc_block, profit=profit
+        )
 
         advisory = _ollama_chat(
             base_url=self._base_url,
             model=self._model_name,
             messages=messages,
         )
+        if not advisory:
+            advisory = self._deterministic_advisory(query, profit or self._last_profit, is_hi or is_trans)
 
-        # Store assistant reply in history for next turn
-        self._history.append({"role": "assistant", "content": advisory})
+        self._last_advisory = advisory
+        self._last_calc_block = calc_block
+        self._record_history_turn(history_user_msg, advisory, is_hi=is_hi or is_trans)
 
         return f"{calc_block}{BLOCK_SEPARATOR}{advisory}" if calc_block else advisory
 

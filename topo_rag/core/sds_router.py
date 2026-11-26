@@ -25,11 +25,11 @@ logger = logging.getLogger(__name__)
 _NUM_PATTERN = re.compile(
     r"""
     (?:
-        \b\d{1,3}(?:,\d{3})*(?:\.\d+)?\b   # 1,000 / 1,000.50
-        | \b\d+(?:\.\d+)?%?\b               # 95.5 / 12%
-        | ₹\s*\d+(?:\.\d+)?                 # ₹2500.00
-        | Rs\.?\s*\d+(?:\.\d+)?             # Rs. 2500
-        | \d{1,2}[/-]\d{1,2}[/-]\d{2,4}    # dates 25/09/2024
+        \b[\d०-९]{1,3}(?:,[\d०-९]{3})*(?:\.[\d०-९]+)?\b   # 1,000 / 1,000.50 / १०००
+        | \b[\d०-९]+(?:\.[\d०-९]+)?%?\b                    # 95.5 / 12% / ५०%
+        | ₹\s*[\d०-९]+(?:\.[\d०-९]+)?                      # ₹2500.00
+        | Rs\.?\s*[\d०-९]+(?:\.[\d०-९]+)?                  # Rs. 2500
+        | [\d०-९]{1,2}[/-][\d०-९]{1,2}[/-][\d०-९]{2,4}    # dates 25/09/2024
     )
     """,
     re.VERBOSE,
@@ -40,7 +40,7 @@ _SEP_PATTERN = re.compile(r"[|,\t;]")
 # Regex for capitalized tokens (NE heuristic — works without spaCy)
 _ENT_PATTERN = re.compile(r"\b[A-Z][a-z]{2,}\b")
 
-# Known Indian state / city / commodity names used to boost NE count
+# Known Indian state / city / commodity names used to boost NE count (English & Hindi)
 _KNOWN_ENTITIES = {
     "Tomato", "Onion", "Potato", "Wheat", "Rice", "Maize", "Soybean",
     "Cotton", "Sugarcane", "Mango", "Banana", "Grapes", "Garlic",
@@ -49,6 +49,13 @@ _KNOWN_ENTITIES = {
     "Nasik", "Pune", "Indore", "Nagpur", "Agra", "Lucknow",
     "Azadpur", "Vashi", "Gultekdi", "Bowenpally", "Koyambedu",
     "Grade", "APMC", "Mandi", "Quintal", "Metric",
+    # Hindi Commodity & Location Entities
+    "टमाटर", "प्याज", "प्याज़", "आलू", "गेहूं", "गेंहू", "चावल", "धान", "मक्का", "सोयाबीन",
+    "कपास", "गन्ना", "आम", "केला", "अंगूर", "लहसुन",
+    "पंजाब", "हरियाणा", "महाराष्ट्र", "कर्नाटक", "गुजरात", "बिहार",
+    "दिल्ली", "मुंबई", "चेन्नई", "कोलकाता", "हैदराबाद", "बेंगलुरु",
+    "नासिक", "पुणे", "इंदौर", "नागपुर", "आगरा", "लखनऊ",
+    "आजादपुर", "वाशी", "गुलटेकड़ी", "मंडी", "क्विंटल", "किलो", "किग्रा", "मुनाफा", "भाड़ा",
 }
 
 

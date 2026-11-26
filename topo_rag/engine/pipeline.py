@@ -34,75 +34,127 @@ logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# Query Parsing helpers
+# Query Parsing helpers (English & Hindi Devanagari)
 # ---------------------------------------------------------------------------
 
-_QUANTITY_RE = re.compile(r"(\d[\d,]*(?:\.\d+)?)\s*(?:kg|kilogram|kilo|quintal|q\b)", re.I)
+_DEV_NUM_MAP = str.maketrans("०१२३४५६७८९", "0123456789")
+
+def _normalize_numerals(text: str) -> str:
+    return text.translate(_DEV_NUM_MAP)
+
+def _is_devanagari(text: str) -> bool:
+    return bool(re.search(r'[\u0900-\u097F]', text))
+
+_QUANTITY_RE = re.compile(
+    r"(\d[\d,]*(?:\.\d+)?)\s*(?:kg|kilogram|kilo|quintal|q\b|किलो|किग्रा|किलोग्राम|क्विंटल|कुंतल|टन|tonne|ton)",
+    re.I
+)
 _GRADE_RE = re.compile(r"grade[- ]?([abc])", re.I)
-_CROP_KEYWORDS = [
-    "tomato", "onion", "potato", "wheat", "rice", "maize", "soybean",
-    "cotton", "mango", "banana", "grapes", "garlic", "sugarcane",
-]
-_CITY_KEYWORDS = [
-    "pune", "mumbai", "delhi", "nashik", "indore", "agra", "lucknow",
-    "hyderabad", "bengaluru", "bangalore", "chennai", "kolkata", "nagpur",
-    "azadpur", "vashi", "gultekdi", "bowenpally", "koyambedu",
-    # Central India
-    "bhopal", "jabalpur", "gwalior", "raipur", "bilaspur",
-    # Rajasthan
-    "jaipur", "jodhpur", "kota", "udaipur", "ajmer",
-    # UP / Bihar
-    "varanasi", "kanpur", "allahabad", "prayagraj", "patna", "muzaffarpur",
-    "gorakhpur", "meerut", "ghaziabad", "noida",
-    # Punjab / Haryana
-    "amritsar", "ludhiana", "chandigarh", "hisar", "karnal",
-    # Gujarat
-    "ahmedabad", "surat", "vadodara", "rajkot",
-    # Maharashtra (more)
-    "aurangabad", "solapur", "kolhapur", "sangli", "satara", "lasalgaon",
-    # Andhra / Telangana
-    "vijayawada", "visakhapatnam", "warangal", "tirupati",
-    # Karnataka
-    "mysuru", "hubli", "mangalore", "belagavi",
-    # Tamil Nadu / Kerala
-    "coimbatore", "madurai", "tiruchirappalli", "thiruvananthapuram", "kochi",
-    # Odisha / WB
-    "bhubaneswar", "cuttack", "siliguri", "asansol",
-    # Himachal / J&K
-    "shimla", "srinagar", "jammu",
-]
+
+_CROP_MAPPING = {
+    # English
+    "tomato": "Tomato", "onion": "Onion", "potato": "Potato", "wheat": "Wheat",
+    "rice": "Rice", "paddy": "Paddy", "maize": "Maize", "soybean": "Soybean",
+    "cotton": "Cotton", "mango": "Mango", "banana": "Banana", "grapes": "Grapes",
+    "garlic": "Garlic", "sugarcane": "Sugarcane", "mustard": "Mustard",
+    "groundnut": "Groundnut", "gram": "Gram", "tur": "Tur", "arhar": "Tur",
+    "moong": "Moong", "urad": "Urad", "sunflower": "Sunflower",
+    # Hindi (Devanagari)
+    "टमाटर": "Tomato", "तमाटर": "Tomato",
+    "प्याज": "Onion", "प्याज़": "Onion", "कांदा": "Onion",
+    "आलू": "Potato", "आलु": "Potato", "बटाटा": "Potato",
+    "गेहूं": "Wheat", "गेंहू": "Wheat", "गेहुं": "Wheat", "कनक": "Wheat",
+    "चावल": "Rice", "धान": "Paddy",
+    "मक्का": "Maize", "भुट्टा": "Maize",
+    "सोयाबीन": "Soybean", "सोयाबिन": "Soybean",
+    "कपास": "Cotton", "रुई": "Cotton",
+    "गन्ना": "Sugarcane", "ईख": "Sugarcane",
+    "सरसों": "Mustard", "मूंगफली": "Groundnut", "चना": "Gram",
+    "अरहर": "Tur", "तूर": "Tur", "मूंग": "Moong", "उड़द": "Urad",
+    "आम": "Mango",
+    "केला": "Banana",
+    "अंगूर": "Grapes",
+    "लहसुन": "Garlic", "लहसून": "Garlic",
+    # Hinglish
+    "tamatar": "Tomato", "pyaj": "Onion", "pyaz": "Onion", "kanda": "Onion",
+    "aaloo": "Potato", "alu": "Potato", "gehun": "Wheat", "chawal": "Rice",
+    "dhan": "Paddy", "makka": "Maize", "bhutta": "Maize", "soyabean": "Soybean",
+    "kapas": "Cotton", "sarson": "Mustard", "moongfali": "Groundnut",
+    "chana": "Gram", "aam": "Mango", "kela": "Banana", "angoor": "Grapes",
+    "lahsun": "Garlic", "ganna": "Sugarcane",
+}
+
+_CITY_MAPPING = {
+    # English
+    "pune": "Pune", "mumbai": "Mumbai", "delhi": "Delhi", "nashik": "Nashik",
+    "nasik": "Nashik", "indore": "Indore", "agra": "Agra", "lucknow": "Lucknow",
+    "hyderabad": "Hyderabad", "bengaluru": "Bengaluru", "bangalore": "Bengaluru",
+    "chennai": "Chennai", "kolkata": "Kolkata", "nagpur": "Nagpur",
+    "azadpur": "Azadpur", "vashi": "Vashi", "gultekdi": "Gultekdi",
+    "bowenpally": "Bowenpally", "koyambedu": "Koyambedu", "bhopal": "Bhopal",
+    "jabalpur": "Jabalpur", "gwalior": "Gwalior", "raipur": "Raipur",
+    "jaipur": "Jaipur", "jodhpur": "Jodhpur", "kota": "Kota", "udaipur": "Udaipur",
+    "varanasi": "Varanasi", "kanpur": "Kanpur", "patna": "Patna",
+    "lasalgaon": "Lasalgaon", "amritsar": "Amritsar", "ludhiana": "Ludhiana",
+    "chandigarh": "Chandigarh", "ahmedabad": "Ahmedabad", "surat": "Surat",
+    "vadodara": "Vadodara",
+    # Hindi
+    "पुणे": "Pune", "मुंबई": "Mumbai", "बम्बई": "Mumbai", "दिल्ली": "Delhi",
+    "नई दिल्ली": "Delhi", "नासिक": "Nashik", "नाशिक": "Nashik", "इंदौर": "Indore",
+    "आगरा": "Agra", "लखनऊ": "Lucknow", "हैदराबाद": "Hyderabad", "बेंगलुरु": "Bengaluru",
+    "बैंगलोर": "Bengaluru", "चेन्नई": "Chennai", "कोलकाता": "Kolkata", "नागपुर": "Nagpur",
+    "आजादपुर": "Azadpur", "वाशी": "Vashi", "गुलटेकड़ी": "Gultekdi", "लासलगांव": "Lasalgaon",
+    "भोपाल": "Bhopal", "जबलपुर": "Jabalpur", "ग्वालियर": "Gwalior", "रायपुर": "Raipur",
+    "जयपुर": "Jaipur", "जोधपुर": "Jodhpur", "कोटा": "Kota", "उदयपुर": "Udaipur",
+    "वाराणसी": "Varanasi", "बनारस": "Varanasi", "कानपुर": "Kanpur", "पटना": "Patna",
+    "अहमदाबाद": "Ahmedabad", "सूरत": "Surat", "अमृतसर": "Amritsar", "लुधियाना": "Ludhiana",
+    "चंडीगढ़": "Chandigarh",
+}
 
 
 def _parse_quantity(query: str) -> Optional[float]:
-    match = _QUANTITY_RE.search(query)
+    normalized_q = _normalize_numerals(query)
+    match = _QUANTITY_RE.search(normalized_q)
     if not match:
         return None
     val_str = match.group(1).replace(",", "")
     val = float(val_str)
     unit = match.group(0).lower()
-    if "quintal" in unit or unit.startswith("q"):
+    if any(q in unit for q in ("quintal", "क्विंटल", "कुंतल")) or unit.endswith("q"):
         val *= 100   # quintals → kg
+    elif any(t in unit for t in ("टन", "tonne", "ton")):
+        val *= 1000  # tonnes → kg
     return val
 
 
 def _parse_grade(query: str) -> str:
     match = _GRADE_RE.search(query)
-    return match.group(1).upper() if match else "A"
+    if match:
+        return match.group(1).upper()
+    hi_match = re.search(r"ग्रेड[- ]?([एबीसीabcABC])", query)
+    if hi_match:
+        g = hi_match.group(1).upper()
+        if g in ('ए', 'A'): return "A"
+        if g in ('बी', 'B'): return "B"
+        if g in ('सी', 'C'): return "C"
+    return "A"
 
 
 def _parse_crop(query: str) -> Optional[str]:
     q_lower = query.lower()
-    for crop in _CROP_KEYWORDS:
-        if crop in q_lower:
-            return crop.title()
+    for crop_word, std_crop in _CROP_MAPPING.items():
+        if crop_word in q_lower:
+            return std_crop
     return None
 
 
 def _parse_locations(query: str) -> Tuple[Optional[str], Optional[str]]:
     """
-    Extract up to 2 location mentions.
-    First tries regex 'from <src> to <dst>' pattern so ANY Indian mandi is captured.
-    Falls back to positional keyword matching across _CITY_KEYWORDS.
+    Extract up to 2 location mentions (English & Hindi).
+    Tries:
+      1. 'from <src> to <dst>'
+      2. '<src> से <dst>' or '<src> se <dst>'
+      3. Positional keyword matching across _CITY_MAPPING.
     """
     from_to_match = re.search(
         r"\bfrom\s+([A-Za-z]+(?:\s+[A-Za-z]+)?)\s+to\s+([A-Za-z]+(?:\s+[A-Za-z]+)?)",
@@ -112,7 +164,11 @@ def _parse_locations(query: str) -> Tuple[Optional[str], Optional[str]]:
     if from_to_match:
         src_cand = from_to_match.group(1).strip().title()
         dst_cand = from_to_match.group(2).strip().title()
-        trailing_stop = {"what", "is", "how", "which", "with", "the", "cost", "profit", "transport", "market", "mandi"}
+        trailing_stop = {
+            "what", "is", "how", "which", "with", "the", "cost", "profit",
+            "transport", "market", "mandi", "via", "by", "for", "under",
+            "on", "in", "through", "using", "fpo",
+        }
         
         dst_words = dst_cand.split()
         if len(dst_words) > 1 and dst_words[-1].lower() in trailing_stop:
@@ -126,16 +182,42 @@ def _parse_locations(query: str) -> Tuple[Optional[str], Optional[str]]:
         if src_cand.lower() not in stopwords and dst_cand.lower() not in stopwords and len(src_cand) >= 3 and len(dst_cand) >= 3:
             return src_cand, dst_cand
 
+    # Match Hindi pattern: "<src> से <dst>" or "<src> se <dst>"
+    se_match = re.search(
+        r"([A-Za-z\u0900-\u097F]+)\s*(?:से|se)\s*([A-Za-z\u0900-\u097F]+)",
+        query,
+        re.I,
+    )
+    if se_match:
+        c1 = se_match.group(1).strip().lower()
+        c2 = se_match.group(2).strip().lower()
+        src_mapped = _CITY_MAPPING.get(c1)
+        dst_mapped = _CITY_MAPPING.get(c2)
+        if src_mapped and dst_mapped:
+            return src_mapped, dst_mapped
+        if src_mapped and not dst_mapped:
+            for k, v in _CITY_MAPPING.items():
+                if c2.startswith(k):
+                    return src_mapped, v
+        if not src_mapped and dst_mapped:
+            for k, v in _CITY_MAPPING.items():
+                if c1.endswith(k):
+                    return v, dst_mapped
+
     q_lower = query.lower()
-    # Collect (position_in_query, city_title) pairs for every city found
     hits = []
-    for city in _CITY_KEYWORDS:
-        idx = q_lower.find(city)
+    for city_key, city_val in _CITY_MAPPING.items():
+        idx = q_lower.find(city_key)
         if idx != -1:
-            hits.append((idx, city.title()))
-    # Sort by position in the original query string
+            hits.append((idx, city_val))
     hits.sort(key=lambda x: x[0])
-    cities = [h[1] for h in hits]
+    
+    seen = set()
+    cities = []
+    for _, c in hits:
+        if c not in seen:
+            seen.add(c)
+            cities.append(c)
 
     if len(cities) >= 2:
         return cities[0], cities[1]
@@ -190,7 +272,7 @@ class TemplateSynthesizer:
         ]
 
         if profit:
-            lines.append(profit.summary())
+            lines.append(profit.summary(lang="hi" if _is_devanagari(query) else "en"))
             lines.append("")
 
         if context_chunks:
@@ -373,17 +455,26 @@ class TopoRAGPipeline:
         """
         logger.info("Pipeline query: %r", query)
 
+        # Cross-lingual retrieval helper: if Devanagari is used, augment query for FAISS/reranker with English keywords
+        search_query = query
+        if _is_devanagari(query):
+            crop_cand = _parse_crop(query)
+            src_cand, dst_cand = _parse_locations(query)
+            keywords = [k for k in [crop_cand, src_cand, dst_cand] if k]
+            if keywords:
+                search_query = f"{' '.join(keywords)} {query}"
+
         # Step 1: SDS routing
-        sds_result = self.sds_router.compute_full(query)
+        sds_result = self.sds_router.compute_full(search_query)
         logger.info("SDS=%.3f → Route %s", sds_result.sds, sds_result.route)
 
         # Step 2: Retrieval
-        candidates, route_used = self._retrieve(query, sds_result)
+        candidates, route_used = self._retrieve(search_query, sds_result)
 
         # Step 3: Reranking
         if use_reranker and candidates:
             try:
-                reranked = self.reranker.rerank(query, candidates, top_k=self.top_k_rerank)
+                reranked = self.reranker.rerank(search_query, candidates, top_k=self.top_k_rerank)
             except Exception as e:
                 logger.warning("Reranker failed, using retrieval order: %s", e)
                 reranked = candidates[:self.top_k_rerank]
@@ -430,17 +521,26 @@ class TopoRAGPipeline:
         """
         logger.info("Pipeline query_for_stream: %r", query)
 
+        # Cross-lingual retrieval helper: if Devanagari is used, augment query for FAISS/reranker with English keywords
+        search_query = query
+        if _is_devanagari(query):
+            crop_cand = _parse_crop(query)
+            src_cand, dst_cand = _parse_locations(query)
+            keywords = [k for k in [crop_cand, src_cand, dst_cand] if k]
+            if keywords:
+                search_query = f"{' '.join(keywords)} {query}"
+
         # Step 1: SDS routing
-        sds_result = self.sds_router.compute_full(query)
+        sds_result = self.sds_router.compute_full(search_query)
         logger.info("SDS=%.3f → Route %s", sds_result.sds, sds_result.route)
 
         # Step 2: Retrieval
-        candidates, route_used = self._retrieve(query, sds_result)
+        candidates, route_used = self._retrieve(search_query, sds_result)
 
         # Step 3: Reranking
         if use_reranker and candidates:
             try:
-                reranked = self.reranker.rerank(query, candidates, top_k=self.top_k_rerank)
+                reranked = self.reranker.rerank(search_query, candidates, top_k=self.top_k_rerank)
             except Exception as e:
                 logger.warning("Reranker failed, using retrieval order: %s", e)
                 reranked = candidates[:self.top_k_rerank]
@@ -493,6 +593,7 @@ class TopoRAGPipeline:
         # ------------------------------------------------------------------
         modal_price = None
         price_provenance_note = None
+        price_provenance_note_hi = None
         dest_market = destination or "Azadpur"
 
         # Tier 1: Live Agmarknet API via data.gov.in
@@ -507,6 +608,7 @@ class TopoRAGPipeline:
                 if live_price_res:
                     modal_price = live_price_res.modal_price
                     price_provenance_note = live_price_res.provenance_note
+                    price_provenance_note_hi = live_price_res.provenance_note_hi
                     logger.info("Using LIVE Mandi Price ₹%.2f/q from data.gov.in (%s)", modal_price, live_price_res.market)
             except Exception as e:
                 logger.warning("Live mandi price resolution failed: %s", e)
@@ -519,6 +621,7 @@ class TopoRAGPipeline:
                     try:
                         modal_price = float(str(mp).replace(",", "").replace("₹", "").strip())
                         price_provenance_note = f"Mandi Price: ₹{modal_price:,.2f}/qtl [Historical baseline from TabularStore (Agmarknet CSV)]"
+                        price_provenance_note_hi = f"मंडी भाव: ₹{modal_price:,.2f}/क्विंटल [ऐतिहासिक एगमार्कनेट CSV रिकॉर्ड से]"
                         logger.info("Using modal price ₹%.2f/q from retrieved data", modal_price)
                         break
                     except (ValueError, TypeError):
@@ -533,6 +636,7 @@ class TopoRAGPipeline:
                     if mp:
                         modal_price = float(str(mp).replace(",", "").replace("₹", "").strip())
                         price_provenance_note = f"Mandi Price: ₹{modal_price:,.2f}/qtl [Historical baseline from TabularStore (Agmarknet CSV)]"
+                        price_provenance_note_hi = f"मंडी भाव: ₹{modal_price:,.2f}/क्विंटल [ऐतिहासिक एगमार्कनेट CSV रिकॉर्ड से]"
                         logger.info("Retrieved modal price ₹%.2f/q for %s in %s from TabularStore", modal_price, crop, destination)
                         break
             except Exception as e:
@@ -542,13 +646,30 @@ class TopoRAGPipeline:
         if modal_price is None:
             defaults = {
                 "Tomato": 2200.0, "Onion": 1800.0, "Potato": 1200.0,
-                "Wheat": 2100.0, "Rice": 3000.0, "Maize": 1800.0,
+                "Wheat": 2100.0, "Rice": 3000.0, "Paddy": 2200.0,
+                "Maize": 1800.0, "Soybean": 4800.0, "Mustard": 5600.0,
+                "Groundnut": 6100.0, "Gram": 5200.0, "Cotton": 7000.0,
             }
             modal_price = defaults.get(crop, 2000.0)
             price_provenance_note = f"Mandi Price: ₹{modal_price:,.2f}/qtl [Benchmark Default]"
+            price_provenance_note_hi = f"मंडी भाव: ₹{modal_price:,.2f}/क्विंटल [मानक आधार मूल्य]"
             logger.info("No modal price from retrieval; using default ₹%.2f/q for %s", modal_price, crop)
 
         grade_premium = 5.0 if grade == "A" else (0.0 if grade == "B" else -5.0)
+        q_lower = query.lower()
+        is_fpo = any(
+            kw in q_lower
+            for kw in (
+                "fpo", "fpc", "farmer producer", "direct marketing",
+                "shetkari bazar", "kisan bazaar", "एफपीओ", "किसान उत्पादक", "सहकारी",
+            )
+        )
+        if any(kw in q_lower for kw in ("kisan rail", "किसान रेल", "railway", "train")):
+            transport_mode = "kisan_rail"
+        elif any(kw in q_lower for kw in ("by road", "road only", "truck only")):
+            transport_mode = "road"
+        else:
+            transport_mode = "auto"
 
         return self.profit_calculator.calculate(
             commodity=crop,
@@ -559,6 +680,9 @@ class TopoRAGPipeline:
             grade=grade,
             grade_premium_pct=grade_premium,
             price_provenance_note=price_provenance_note,
+            price_provenance_note_hi=price_provenance_note_hi,
+            is_fpo_member=is_fpo,
+            transport_mode=transport_mode,
         )
 
     # ------------------------------------------------------------------

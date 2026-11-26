@@ -1,0 +1,305 @@
+{
+  "metadata": {
+    "dataset_name": "Indian Agricultural Subsidies & Cost-Reduction Policy Index (V6)",
+    "version": "1.0.0",
+    "last_verified": "2026-11-26",
+    "compilation_method": "Curated from official ministerial operational guidelines, CCEA/PIB notifications, and State APMC Amendment Acts (structured parallel to ppac_diesel_state_index.json)",
+    "sources": [
+      {
+        "scheme": "MoFPI Operation Greens (TOP to TOTAL) & Kisan Rail",
+        "authority": "Ministry of Food Processing Industries (MoFPI) & Ministry of Railways",
+        "url": "https://mofpi.gov.in/schemes/operation-greens",
+        "secondary_url": "https://www.sampada-mofpi.gov.in"
+      },
+      {
+        "scheme": "PM-AASHA (PDPS & PSS) + CACP Minimum Support Prices",
+        "authority": "Department of Agriculture & Farmers Welfare (DA&FW) / CCEA",
+        "url": "https://agriwelfare.gov.in",
+        "msp_url": "https://desagri.gov.in"
+      },
+      {
+        "scheme": "State APMC FPO & Direct Marketing Exemptions",
+        "authority": "Directorate of Marketing & Inspection (DMI) & State Agricultural Marketing Boards",
+        "url": "https://dmi.gov.in"
+      }
+    ]
+  },
+  "operation_greens": {
+    "scheme_name": "MoFPI Operation Greens (TOP to TOTAL)",
+    "freight_subsidy_pct": 0.5,
+    "storage_subsidy_pct": 0.5,
+    "max_storage_months": 3,
+    "road_min_distance_km": 100.0,
+    "federation_min_distance_km": 250.0,
+    "road_min_qty_farmer_qtl": 90.0,
+    "road_min_qty_fpo_qtl": 1000.0,
+    "kisan_rail_min_qty_qtl": 0.0,
+    "kisan_rail_corridor_min_km": 250.0,
+    "citation": "MoFPI Operation Greens (TOP to TOTAL) Guidelines under PM Kisan SAMPADA Yojana & Kisan Rail Convergence (mofpi.gov.in / pib.gov.in)",
+    "eligible_crops": [
+      "mango", "banana", "apple", "pineapple", "orange", "citrus",
+      "kinnow", "mosambi", "lime", "lemon", "grapes", "aonla", "amla",
+      "pomegranate", "guava", "litchi", "kiwi", "papaya", "jackfruit",
+      "tomato", "onion", "potato", "green peas", "carrot", "cauliflower",
+      "beans", "french beans", "cabbage", "capsicum",
+      "bottle gourd", "bitter gourd", "ridge gourd", "sponge gourd",
+      "pointed gourd", "ash gourd", "okra", "bhindi", "garlic", "ginger",
+      "green chillies", "chilli", "cucumber", "turmeric"
+    ]
+  },
+  "pm_aasha_msp": {
+    "scheme_name": "PM-AASHA (PDPS / PSS) & CACP MSP Framework",
+    "pdps_max_cap_pct": 0.15,
+    "pdps_state_production_coverage_pct": 0.4,
+    "pss_state_production_ceiling_pct": 0.25,
+    "citation_pdps": "DA&FW PM-AASHA PDPS Revamp (Union Cabinet Approval Sept 2024, 15% MSP compensation cap — pib.gov.in)",
+    "crops": {
+      "paddy": {
+        "msp": 2369.0,
+        "grade_a_msp": 2389.0,
+        "season": "Kharif",
+        "marketing_year": "2025-26",
+        "category": "cereal",
+        "intervention_type": "MSP_PROCUREMENT",
+        "citation": "CCEA KMS 2025-26 (desagri.gov.in)"
+      },
+      "rice": {
+        "msp": 2369.0,
+        "grade_a_msp": 2389.0,
+        "season": "Kharif",
+        "marketing_year": "2025-26",
+        "category": "cereal",
+        "intervention_type": "MSP_PROCUREMENT",
+        "citation": "CCEA KMS 2025-26 (desagri.gov.in)"
+      },
+      "maize": {
+        "msp": 2225.0,
+        "season": "Kharif",
+        "marketing_year": "2024-25",
+        "category": "cereal",
+        "intervention_type": "MSP_PROCUREMENT",
+        "citation": "CCEA KMS 2024-25 (desagri.gov.in)"
+      },
+      "soybean": {
+        "msp": 5328.0,
+        "season": "Kharif",
+        "marketing_year": "2025-26",
+        "category": "oilseed",
+        "intervention_type": "PDPS",
+        "citation": "CCEA KMS 2025-26 Yellow Soybean (pib.gov.in)"
+      },
+      "soyabean": {
+        "msp": 5328.0,
+        "season": "Kharif",
+        "marketing_year": "2025-26",
+        "category": "oilseed",
+        "intervention_type": "PDPS",
+        "citation": "CCEA KMS 2025-26 Yellow Soybean (pib.gov.in)"
+      },
+      "cotton": {
+        "msp": 7710.0,
+        "long_staple_msp": 8110.0,
+        "season": "Kharif",
+        "marketing_year": "2025-26",
+        "category": "fiber",
+        "intervention_type": "MSP_PROCUREMENT",
+        "citation": "CCEA KMS 2025-26 Medium Staple (pib.gov.in)"
+      },
+      "wheat": {
+        "msp": 2425.0,
+        "season": "Rabi",
+        "marketing_year": "2025-26",
+        "category": "cereal",
+        "intervention_type": "MSP_PROCUREMENT",
+        "citation": "CCEA RMS 2025-26 (desagri.gov.in)"
+      },
+      "gram": {
+        "msp": 5650.0,
+        "season": "Rabi",
+        "marketing_year": "2025-26",
+        "category": "pulse",
+        "intervention_type": "PSS",
+        "citation": "CCEA RMS 2025-26 Chana (desagri.gov.in)"
+      },
+      "mustard": {
+        "msp": 6200.0,
+        "season": "Rabi",
+        "marketing_year": "2025-26",
+        "category": "oilseed",
+        "intervention_type": "PDPS",
+        "citation": "CCEA RMS 2025-26 Rapeseed & Mustard (desagri.gov.in)"
+      },
+      "tur": {
+        "msp": 7550.0,
+        "season": "Kharif",
+        "marketing_year": "2024-25",
+        "category": "pulse",
+        "intervention_type": "PSS",
+        "citation": "CCEA KMS 2024-25 (pib.gov.in)"
+      },
+      "arhar": {
+        "msp": 7550.0,
+        "season": "Kharif",
+        "marketing_year": "2024-25",
+        "category": "pulse",
+        "intervention_type": "PSS",
+        "citation": "CCEA KMS 2024-25 (pib.gov.in)"
+      },
+      "moong": {
+        "msp": 8682.0,
+        "season": "Kharif",
+        "marketing_year": "2024-25",
+        "category": "pulse",
+        "intervention_type": "PSS",
+        "citation": "CCEA KMS 2024-25 (pib.gov.in)"
+      },
+      "urad": {
+        "msp": 7400.0,
+        "season": "Kharif",
+        "marketing_year": "2024-25",
+        "category": "pulse",
+        "intervention_type": "PSS",
+        "citation": "CCEA KMS 2024-25 (pib.gov.in)"
+      },
+      "groundnut": {
+        "msp": 6783.0,
+        "season": "Kharif",
+        "marketing_year": "2024-25",
+        "category": "oilseed",
+        "intervention_type": "PDPS",
+        "citation": "CCEA KMS 2024-25 (pib.gov.in)"
+      },
+      "sunflower": {
+        "msp": 7280.0,
+        "season": "Kharif",
+        "marketing_year": "2024-25",
+        "category": "oilseed",
+        "intervention_type": "PDPS",
+        "citation": "CCEA KMS 2024-25 (pib.gov.in)"
+      },
+      "sesamum": {
+        "msp": 9267.0,
+        "season": "Kharif",
+        "marketing_year": "2024-25",
+        "category": "oilseed",
+        "intervention_type": "PDPS",
+        "citation": "CCEA KMS 2024-25 (pib.gov.in)"
+      },
+      "nigerseed": {
+        "msp": 8717.0,
+        "season": "Kharif",
+        "marketing_year": "2024-25",
+        "category": "oilseed",
+        "intervention_type": "PDPS",
+        "citation": "CCEA KMS 2024-25 (pib.gov.in)"
+      }
+    }
+  },
+  "state_fpo_exemptions": {
+    "maharashtra": {
+      "fpo_mandi_fee_waiver_pct": 1.0,
+      "direct_marketing_allowed": true,
+      "fruits_veg_exempt_inside_apmc": false,
+      "fruits_veg_delisted_outside_apmc": true,
+      "citation": "Maharashtra APMC (Amendment) Ordinance 2016 & MSAMB Direct Marketing / Shetkari Bazar Rules (dmi.gov.in)"
+    },
+    "karnataka": {
+      "fpo_mandi_fee_waiver_pct": 1.0,
+      "direct_marketing_allowed": true,
+      "fruits_veg_exempt_inside_apmc": true,
+      "fruits_veg_delisted_outside_apmc": true,
+      "citation": "Karnataka APMC Amendment Act & KSAMB Horticulture Market Fee Exemption (dmi.gov.in)"
+    },
+    "bihar": {
+      "fpo_mandi_fee_waiver_pct": 1.0,
+      "direct_marketing_allowed": true,
+      "fruits_veg_exempt_inside_apmc": true,
+      "fruits_veg_delisted_outside_apmc": true,
+      "citation": "Bihar Agriculture Produce Market (Repealing) Act 2006 (0% APMC fee statewide)"
+    },
+    "kerala": {
+      "fpo_mandi_fee_waiver_pct": 1.0,
+      "direct_marketing_allowed": true,
+      "fruits_veg_exempt_inside_apmc": true,
+      "fruits_veg_delisted_outside_apmc": true,
+      "citation": "Kerala Non-APMC Cooperative Marketing Framework (VFPCK / Horticorp)"
+    },
+    "uttar pradesh": {
+      "fpo_mandi_fee_waiver_pct": 1.0,
+      "direct_marketing_allowed": true,
+      "fruits_veg_exempt_inside_apmc": false,
+      "fruits_veg_delisted_outside_apmc": false,
+      "citation": "UP Krishi Utpadan Mandi Parishad — FPO / Kisan Bazaar Direct Purchase Rules"
+    },
+    "madhya pradesh": {
+      "fpo_mandi_fee_waiver_pct": 0.5,
+      "direct_marketing_allowed": true,
+      "fruits_veg_exempt_inside_apmc": false,
+      "fruits_veg_delisted_outside_apmc": false,
+      "citation": "MP Krishi Upaj Mandi Adhiniyam — FPO Direct Procurement Concession"
+    },
+    "rajasthan": {
+      "fpo_mandi_fee_waiver_pct": 1.0,
+      "direct_marketing_allowed": true,
+      "fruits_veg_exempt_inside_apmc": false,
+      "fruits_veg_delisted_outside_apmc": false,
+      "citation": "Rajasthan APMC Amendment Act — Direct Purchase & FPO Exemption"
+    },
+    "gujarat": {
+      "fpo_mandi_fee_waiver_pct": 1.0,
+      "direct_marketing_allowed": true,
+      "fruits_veg_exempt_inside_apmc": false,
+      "fruits_veg_delisted_outside_apmc": false,
+      "citation": "Gujarat APMC (Amendment) Rules — GAPMC Direct Marketing License"
+    },
+    "punjab": {
+      "fpo_mandi_fee_waiver_pct": 0.0,
+      "direct_marketing_allowed": false,
+      "fruits_veg_exempt_inside_apmc": false,
+      "fruits_veg_delisted_outside_apmc": false,
+      "citation": "Punjab APMC Act & PSAMB — Full Market Fee + RDF Applicable"
+    },
+    "haryana": {
+      "fpo_mandi_fee_waiver_pct": 0.0,
+      "direct_marketing_allowed": false,
+      "fruits_veg_exempt_inside_apmc": false,
+      "fruits_veg_delisted_outside_apmc": false,
+      "citation": "Haryana APMC Act & HRDF — Full Market Fee + HRDF Applicable"
+    },
+    "tamil nadu": {
+      "fpo_mandi_fee_waiver_pct": 1.0,
+      "direct_marketing_allowed": true,
+      "fruits_veg_exempt_inside_apmc": false,
+      "fruits_veg_delisted_outside_apmc": false,
+      "citation": "Tamil Nadu APMC Amendment — TNAMB Direct Marketing License"
+    },
+    "andhra pradesh": {
+      "fpo_mandi_fee_waiver_pct": 1.0,
+      "direct_marketing_allowed": true,
+      "fruits_veg_exempt_inside_apmc": false,
+      "fruits_veg_delisted_outside_apmc": false,
+      "citation": "AP (Agricultural Produce & Livestock) Markets Amendment Act"
+    },
+    "telangana": {
+      "fpo_mandi_fee_waiver_pct": 1.0,
+      "direct_marketing_allowed": true,
+      "fruits_veg_exempt_inside_apmc": false,
+      "fruits_veg_delisted_outside_apmc": false,
+      "citation": "Telangana APMC Amendment Act — TGAMB Direct Marketing Rules"
+    },
+    "delhi": {
+      "fpo_mandi_fee_waiver_pct": 0.0,
+      "direct_marketing_allowed": false,
+      "fruits_veg_exempt_inside_apmc": false,
+      "fruits_veg_delisted_outside_apmc": false,
+      "citation": "Delhi DAMB (Azadpur APMC) Fee Schedule — Standard 1% Fee + 1% Cess"
+    },
+    "default": {
+      "fpo_mandi_fee_waiver_pct": 0.0,
+      "direct_marketing_allowed": false,
+      "fruits_veg_exempt_inside_apmc": false,
+      "fruits_veg_delisted_outside_apmc": false,
+      "citation": "Model APMC Act (Conservative Benchmark — No Exemption Assumed)"
+    }
+  }
+}
